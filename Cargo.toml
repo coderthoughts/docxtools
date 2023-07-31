@@ -4,5 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.72"
-docx-rs = "0.4.7"
+zip = "0.6"
+walkdir = "2.3"
+
+[[bin]]
+name = "docxtools"
+path = "src/bin/main.rs"
