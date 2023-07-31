@@ -10,13 +10,16 @@ pub struct ZipUtil {
 }
 
 impl ZipUtil {
-    pub fn read_zip(file: fs::File, temp_path: &Path) {
-        let mut archive = zip::ZipArchive::new(file).unwrap();
+    pub fn read_zip(
+        file: fs::File, 
+        temp_path: &Path
+    ) -> zip::result::ZipResult<()> {
+        let mut archive = zip::ZipArchive::new(file)?;
 
         let outpathbase = temp_path.to_owned();
 
         for i in 0..archive.len() {
-            let mut file = archive.by_index(i).unwrap();
+            let mut file = archive.by_index(i)?;
             let outpathfn = match file.enclosed_name() {
                 Some(path) => path.to_owned(),
                 None => continue,
@@ -33,7 +36,7 @@ impl ZipUtil {
     
             if (*file.name()).ends_with('/') {
                 println!("File {} extracted to \"{}\"", i, outpath.display());
-                fs::create_dir_all(&outpath).unwrap();
+                fs::create_dir_all(&outpath)?;
             } else {
                 println!(
                     "File {} extracted to \"{}\" ({} bytes)",
@@ -43,11 +46,11 @@ impl ZipUtil {
                 );
                 if let Some(p) = outpath.parent() {
                     if !p.exists() {
-                        fs::create_dir_all(p).unwrap();
+                        fs::create_dir_all(p)?;
                     }
                 }
-                let mut outfile = fs::File::create(&outpath).unwrap();
-                io::copy(&mut file, &mut outfile).unwrap();
+                let mut outfile = fs::File::create(&outpath)?;
+                io::copy(&mut file, &mut outfile)?;
             }
     
             // Get and Set permissions
@@ -56,10 +59,12 @@ impl ZipUtil {
                 use std::os::unix::fs::PermissionsExt;
     
                 if let Some(mode) = file.unix_mode() {
-                    fs::set_permissions(&outpath, fs::Permissions::from_mode(mode)).unwrap();
+                    fs::set_permissions(&outpath, fs::Permissions::from_mode(mode))?;
                 }
             }
         }    
+        
+        Ok(())
     }
 
     pub fn write_zip(
@@ -71,7 +76,7 @@ impl ZipUtil {
         }
     
         let path = Path::new(dst_file);
-        let file = fs::File::create(path).unwrap();
+        let file = fs::File::create(path)?;
     
         let walkdir = WalkDir::new(src_dir);
         let it = walkdir.into_iter();

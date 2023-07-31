@@ -20,7 +20,7 @@ fn real_main() -> i32 {
     let temp_dir = &*args[2];
     let tname = std::path::Path::new(temp_dir);
 
-    ZipUtil::read_zip(file, tname);
+    ZipUtil::read_zip(file, tname).unwrap();
 
     let dest_file = src_file.to_owned() + ".xyz";
 
