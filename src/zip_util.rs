@@ -10,6 +10,13 @@ pub struct ZipUtil {
 }
 
 impl ZipUtil {
+    pub fn read_zip0(
+        zip_file: &str, 
+        dest_dir: &str
+    ) -> zip::result::ZipResult<()> {
+        Ok(())
+    }
+
     pub fn read_zip(
         file: fs::File, 
         temp_path: &Path

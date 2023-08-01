@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 zip = "0.6"
 walkdir = "2.3"
+xml_dom = "0.2"
 
 [[bin]]
 name = "docxtools"
