@@ -11,26 +11,27 @@ pub struct XMLUtil {
 impl XMLUtil {
     fn read_node(node: &mut RefNode) {
         for mut r in node.child_nodes() {
-            let val = r.value();
+            let val = r.node_value();
             println!("Found child {:?}", val);
 
             Self::read_node(&mut r);
 
             let _ = match val {
-                Some(s) => { 
+                Some(s) => {
                     println!("Val: {}", s);
                     if s.eq_ignore_ascii_case("ya") {
-                        let _ = r.set_value("RRR"); 
+                        let _ = r.set_node_value("RRR"); 
                         println!("Changed: {}", s);     
                     }
                     if s.eq_ignore_ascii_case("hihih") {
-                        let _ = r.set_value("bleh");
+                        let cl = r.child_nodes();
+                        println!("Children {:?}", cl);
+                        let _ = r.set_node_value("bleh");
                         println!("Changed too: {}", s);
                     }
-                } ,
-                None => (),
+                },
+                None => {}
             };
-
         }
     }
 
@@ -39,16 +40,11 @@ impl XMLUtil {
         let mut dom = read_xml(r#"<?xml version="1.0"?>
         <hi>hihih<yo>ya</yo></hi>
         "#).unwrap();
-        // dom.
-        // println!("Read dom: {:?}", dom);
 
         Self::read_node(&mut dom);
+        println!("---");
         Self::read_node(&mut dom);
 
         println!("Resulting XML: {}", dom.to_string());
-        // for r in dom.child_nodes() {
-        //     println!("Found child {:?}", r);
-        //     // r.child_nodes()
-        // }
     }
 }
