@@ -23,6 +23,10 @@ impl XMLUtil {
                         let _ = r.set_value("RRR"); 
                         println!("Changed: {}", s);     
                     }
+                    if s.eq_ignore_ascii_case("hihih") {
+                        let _ = r.set_value("bleh");
+                        println!("Changed too: {}", s);
+                    }
                 } ,
                 None => (),
             };
@@ -30,7 +34,7 @@ impl XMLUtil {
         }
     }
 
-    pub fn read_xmls(root_dir: &str) {
+    pub fn read_xmls(_root_dir: &str) {
 
         let mut dom = read_xml(r#"<?xml version="1.0"?>
         <hi>hihih<yo>ya</yo></hi>
@@ -41,6 +45,7 @@ impl XMLUtil {
         Self::read_node(&mut dom);
         Self::read_node(&mut dom);
 
+        println!("Resulting XML: {}", dom.to_string());
         // for r in dom.child_nodes() {
         //     println!("Found child {:?}", r);
         //     // r.child_nodes()
