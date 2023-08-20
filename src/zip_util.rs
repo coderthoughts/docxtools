@@ -10,14 +10,19 @@ pub struct ZipUtil {
 }
 
 impl ZipUtil {
-    // pub fn read_zip0(
-    //     zip_file: &str, 
-    //     dest_dir: &str
-    // ) -> zip::result::ZipResult<()> {
-    //     Ok(())
-    // }
-
     pub fn read_zip(
+        zip_file: &str, 
+        dest_dir: &str
+    ) -> zip::result::ZipResult<()> {
+        let fname = std::path::Path::new(zip_file);
+        let file = fs::File::open(fname)?;
+
+        let tname = std::path::Path::new(dest_dir);
+            
+        Self::read_zip_file(file, tname)
+    }
+
+    fn read_zip_file(
         file: fs::File, 
         temp_path: &Path
     ) -> zip::result::ZipResult<()> {

@@ -9,6 +9,10 @@ pub struct XMLUtil {
 }
 
 impl XMLUtil {
+    pub fn grep_xml(dir: &str, pattern: &str) {
+
+    }
+
     fn read_node(node: &mut RefNode) {
         for mut r in node.child_nodes() {
             let val = r.node_value();
