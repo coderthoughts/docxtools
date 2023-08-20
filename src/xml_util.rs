@@ -1,5 +1,9 @@
-use xml_dom::parser::read_xml;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::Path;
+use xml_dom::parser::{read_xml, read_reader};
 use xml_dom::level2::*;
+use walkdir::WalkDir;
 // use xml_dom::shared::rc_cell::RcRefCell;
 // use xml_dom::level2::NodeImpl;
 // use xml_dom::level2::NodeImpl;
@@ -11,6 +15,34 @@ pub struct XMLUtil {
 impl XMLUtil {
     pub fn grep_xml(dir: &str, pattern: &str) {
 
+        for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
+            // println!("{}", entry.path().display());
+            if entry.file_type().is_file() {
+                Self::grep_xml_file(entry.path(), pattern);
+            }
+        }
+        // let r = "";
+        // let f = File::open(dir)
+        // read_reader(r);
+    }
+
+    fn grep_xml_file(path: &Path, pattern: &str) {
+        let f = File::open(path).unwrap(); // TODO
+        let r = BufReader::new(f);
+        let dom = read_reader(r).unwrap();
+
+        Self::grep_xml_node(&dom, pattern);
+
+    }
+
+    fn grep_xml_node(node: &RefNode, pattern: &str) {
+
+        for n in node.child_nodes() {
+            if let Option::Some(v) = n.node_value() {
+                println!("{:?}", v);
+            }
+            Self::grep_xml_node(&n, pattern);
+        }
     }
 
     fn read_node(node: &mut RefNode) {

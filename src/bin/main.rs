@@ -24,8 +24,8 @@ struct Args {
     #[arg(short, long)]
     in_file: String,
 
-    #[arg(short, long)]
-    out_file: String,
+    // #[arg(short, long)]
+    // out_file: String,
 
     #[arg(short, long)]
     temp_dir: String
@@ -49,7 +49,7 @@ fn real_main(args: Args) -> i32 {
 
     // let src_file = &*args[1];
     let src_file = args.in_file;
-    let dest_file = args.out_file;
+    // let dest_file = args.out_file;
     let temp_dir = args.temp_dir;
 
     ZipUtil::read_zip(&src_file, &temp_dir).unwrap();
@@ -62,7 +62,7 @@ fn real_main(args: Args) -> i32 {
     }
     // XMLUtil::read_xmls(&temp_dir); // .unwrap();
 
-    ZipUtil::write_zip(&temp_dir, &dest_file).unwrap();
+    // ZipUtil::write_zip(&temp_dir, &dest_file).unwrap();
 
     0
 }
