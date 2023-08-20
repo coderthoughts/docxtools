@@ -1,3 +1,4 @@
+use regex::Regex;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
@@ -14,11 +15,12 @@ pub struct XMLUtil {
 
 impl XMLUtil {
     pub fn grep_xml(dir: &str, pattern: &str) {
+        let regex = Regex::new(pattern).unwrap();
 
         for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
             // println!("{}", entry.path().display());
             if entry.file_type().is_file() {
-                Self::grep_xml_file(entry.path(), pattern);
+                Self::grep_xml_file(entry.path(), &regex);
             }
         }
         // let r = "";
@@ -26,22 +28,26 @@ impl XMLUtil {
         // read_reader(r);
     }
 
-    fn grep_xml_file(path: &Path, pattern: &str) {
+    fn grep_xml_file(path: &Path, regex: &Regex) {
         let f = File::open(path).unwrap(); // TODO
         let r = BufReader::new(f);
         let dom = read_reader(r).unwrap();
 
-        Self::grep_xml_node(&dom, pattern);
+        Self::grep_xml_node(&dom, regex);
 
     }
 
-    fn grep_xml_node(node: &RefNode, pattern: &str) {
+    fn grep_xml_node(node: &RefNode, regex: &Regex) {
 
         for n in node.child_nodes() {
             if let Option::Some(v) = n.node_value() {
                 println!("{:?}", v);
+
+                if regex.is_match(&v) {
+                    println!("Matches ^^^");
+                }
             }
-            Self::grep_xml_node(&n, pattern);
+            Self::grep_xml_node(&n, regex);
         }
     }
 
