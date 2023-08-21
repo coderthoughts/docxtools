@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 regex = "1.9"
+tempfile = "3.8"
 zip = "0.6"
 walkdir = "2.3"
 xml_dom = "0.2"

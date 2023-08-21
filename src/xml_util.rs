@@ -16,6 +16,11 @@ impl XMLUtil {
     }
 
     pub fn grep_xml(dir: &str, pattern: &str) {
+        let mut base_dir = dir.to_owned();
+        if !dir.ends_with("/") {
+            base_dir.push('/');
+        }
+
         let regex;
         if pattern.len() > 0 {
             regex = Some(Regex::new(pattern).unwrap());
@@ -25,12 +30,12 @@ impl XMLUtil {
 
         for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
             if entry.file_type().is_file() && entry.file_name().to_string_lossy().ends_with(".xml") {
-                Self::grep_xml_file(entry.path(), &regex);
+                Self::grep_xml_file(entry.path(), &regex, &base_dir);
             }
         }
     }
 
-    fn grep_xml_file(path: &Path, regex: &Option<Regex>) {
+    fn grep_xml_file(path: &Path, regex: &Option<Regex>, base_dir: &str) {
         // detect BOM
         let bom = Self::getbom(path);
         let f = File::open(path).unwrap(); // TODO
@@ -46,12 +51,20 @@ impl XMLUtil {
         let dom_res = read_reader(r);
 
         match dom_res {
-            Ok(dom) => Self::grep_xml_node(&dom, regex, path),
+            Ok(dom) => Self::grep_xml_node(&dom, regex, path, base_dir),
             Err(e) => println!("Problem with XML file {}: {}", path.display(), e)
         }
     }
 
-    fn grep_xml_node(node: &RefNode, regex: &Option<Regex>, path: &Path) {
+    fn grep_xml_node(node: &RefNode, regex: &Option<Regex>, path: &Path, base_dir: &str) {
+        let sub_path;
+        let full_path = path.to_string_lossy();
+        if full_path.starts_with(base_dir) {
+            sub_path = &full_path[base_dir.len()..];
+        } else {
+            sub_path = &full_path;
+        }
+
         for n in node.child_nodes() {
             if let Option::Some(v) = n.node_value() {
                 if v.len() == 0 {
@@ -61,15 +74,15 @@ impl XMLUtil {
                 match regex {
                     Some(r) => {
                         if r.is_match(&v) {
-                            println!("{}: {}", path.to_string_lossy(), v);
+                            println!("{}: {}", sub_path, v);
                         }
                     },
                     None => {
-                        println!("{}: {}", path.to_string_lossy(), v);
+                        println!("{}: {}", sub_path, v);
                     }
                 }
             }
-            Self::grep_xml_node(&n, regex, path);
+            Self::grep_xml_node(&n, regex, path, base_dir);
         }
     }
 

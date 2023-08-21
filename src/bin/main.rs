@@ -1,4 +1,5 @@
 use clap::Parser;
+use tempfile::tempdir;
 
 use docxtools::xml_util::XMLUtil;
 use docxtools::zip_util::ZipUtil;
@@ -20,7 +21,7 @@ struct Args {
 
     // TODO automatically pick a temp dir
     #[arg(short, long)]
-    temp_dir: String
+    temp_dir: Option<String>
 }
 fn main() {
     let args = Args::parse();
@@ -38,7 +39,17 @@ fn real_main(args: Args) -> i32 {
     // let src_file = &*args[1];
     let src_file = args.in_file;
     // let dest_file = args.out_file;
-    let temp_dir = args.temp_dir;
+
+    let fstempdir = tempdir().unwrap();
+
+    let temp_dir;
+    if let Option::Some(v) = args.temp_dir {
+        temp_dir = v;
+    } else {
+        temp_dir = fstempdir.path().to_string_lossy().to_string();
+    }
+
+    // let temp_dir = args.temp_dir;
 
     ZipUtil::read_zip(&src_file, &temp_dir).unwrap();
 
@@ -55,6 +66,8 @@ fn real_main(args: Args) -> i32 {
 
     // ZipUtil::write_zip(&temp_dir, &dest_file).unwrap();
 
-    // TODO delete temp dir
+    // Delete temp dir
+    fstempdir.close().unwrap();
+
     0
 }
