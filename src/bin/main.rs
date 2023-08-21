@@ -13,13 +13,15 @@ struct Args {
     #[arg(long)]
     grep_pattern: Option<String>,
 
+    /// The docx file to operate on.
     #[arg(short, long)]
     in_file: String,
 
     // #[arg(short, long)]
     // out_file: String,
 
-    // TODO automatically pick a temp dir
+    /// The temporary directory to use. If not specified a system temp directory
+    /// will be used and cleaned after use.
     #[arg(short, long)]
     temp_dir: Option<String>
 }
