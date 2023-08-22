@@ -12,6 +12,12 @@ xml_dom = "0.2"
 unicode-bom = "2.0"
 clap = { version = "4.3.19", features = ["derive"] }
 
+[profile.release]
+opt-level = 'z'  # Optimize for size.
+lto = true
+panic = 'abort'
+codegen-units = 1
+
 [[bin]]
 name = "docxtools"
 path = "src/bin/main.rs"

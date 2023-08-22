@@ -9,7 +9,6 @@ use docxtools::zip_util::ZipUtil;
 #[command(propagate_version = true)]
 struct Cli {
     /// The docx file to operate on.
-    #[arg(short, long)]
     in_file: String,
 
     /// The temporary directory to use. If not specified a system temp directory
@@ -36,6 +35,7 @@ struct CatArgs {
 
 #[derive(Args)]
 struct GrepArgs {
+    /// The regular expression to search for
     regex: String,
 }
 
