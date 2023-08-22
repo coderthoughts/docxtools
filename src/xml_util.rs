@@ -86,6 +86,7 @@ impl XMLUtil {
         }
     }
 
+    // Below here is all experimental code
     fn read_node(node: &mut RefNode) {
         for mut r in node.child_nodes() {
             let val = r.node_value();
