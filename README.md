@@ -4,7 +4,7 @@ A command-line utility to work with docx files. Can be useful for unix stream-ba
 such as searching through a large amount of docx files on the commandline. It can also be
 useful for batch operations.
 
-`docxtools` is written in Rust, platform-specific binary downloads can be found in the Release area.
+`docxtools` is written in Rust, platform-specific binary downloads can be found in the Release area: https://github.com/coderthoughts/docxtools/releases
 
 ## Usage
 
