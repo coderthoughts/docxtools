@@ -73,13 +73,13 @@ fn real_main(args: Cli) -> i32 {
 
     match &args.command {
         Commands::Cat(_) => {
-            XMLUtil::cat(&temp_dir);
+            XMLUtil::cat(&temp_dir, &src_file);
         },
         Commands::Grep(grep_args) => {
-            XMLUtil::grep_xml(&temp_dir, &grep_args.regex)
+            XMLUtil::grep_xml(&temp_dir, &src_file, &grep_args.regex)
         },
         Commands::Replace(replace_args) => {
-            XMLUtil::replace_xml(&temp_dir,
+            XMLUtil::replace_xml(&temp_dir, &src_file,
                 &replace_args.regex, &replace_args.replace,
                 &replace_args.out_file);
         }
