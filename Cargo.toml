@@ -17,6 +17,7 @@ opt-level = 'z'  # Optimize for size.
 lto = true
 panic = 'abort'
 codegen-units = 1
+strip = true
 
 [[bin]]
 name = "docxtools"
