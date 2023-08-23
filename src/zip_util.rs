@@ -47,7 +47,7 @@ impl ZipUtil {
             }
 
             if (*file.name()).ends_with('/') {
-                println!("File {} extracted to \"{}\"", i, outpath.display());
+                // println!("File {} extracted to \"{}\"", i, outpath.display());
                 fs::create_dir_all(&outpath)?;
             } else {
                 // println!(
@@ -121,7 +121,7 @@ impl ZipUtil {
             // Write file or directory explicitly
             // Some unzip tools unzip files with directory paths correctly, some do not!
             if path.is_file() {
-                println!("adding file {path:?} as {name:?} ...");
+                // println!("adding file {path:?} as {name:?} ...");
                 #[allow(deprecated)]
                 zip.start_file_from_path(name, options)?;
                 let mut f = fs::File::open(path)?;
@@ -132,7 +132,7 @@ impl ZipUtil {
             } else if !name.as_os_str().is_empty() {
                 // Only if not root! Avoids path spec / warning
                 // and mapname conversion failed error on unzip
-                println!("adding dir {path:?} as {name:?} ...");
+                // println!("adding dir {path:?} as {name:?} ...");
                 #[allow(deprecated)]
                 zip.add_directory_from_path(name, options)?;
             }

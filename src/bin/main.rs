@@ -85,10 +85,6 @@ fn real_main(args: Cli) -> i32 {
         }
     }
 
-    // XMLUtil::read_xmls(&temp_dir); // .unwrap();
-
-    // ZipUtil::write_zip(&temp_dir, &dest_file).unwrap();
-
     // Delete temp dir
     fstempdir.close().unwrap();
 

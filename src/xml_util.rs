@@ -157,7 +157,8 @@ impl XMLUtil {
                     Some(r) => {
                         if r.is_match(&v) {
                             println!("{}: {}", sub_path, v);
-                            let _ = n.set_node_value(replace);
+                            let res = r.replace_all(&v, replace);
+                            let _ = n.set_node_value(&res);
                             changed = true;
                         }
                     },
