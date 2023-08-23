@@ -27,6 +27,8 @@ enum Commands {
 
     /// Search the text in the document like 'grep'
     Grep(GrepArgs),
+
+    Replace(ReplaceArgs),
 }
 
 #[derive(Args)]
@@ -37,6 +39,15 @@ struct CatArgs {
 struct GrepArgs {
     /// The regular expression to search for
     regex: String,
+}
+
+#[derive(Args)]
+struct ReplaceArgs {
+    regex: String,
+
+    replace: String,
+
+    out_file: String
 }
 
 fn main() {
@@ -66,6 +77,11 @@ fn real_main(args: Cli) -> i32 {
         },
         Commands::Grep(grep_args) => {
             XMLUtil::grep_xml(&temp_dir, &grep_args.regex)
+        },
+        Commands::Replace(replace_args) => {
+            XMLUtil::replace_xml(&temp_dir,
+                &replace_args.regex, &replace_args.replace,
+                &replace_args.out_file);
         }
     }
 
