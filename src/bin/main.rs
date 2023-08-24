@@ -28,6 +28,7 @@ enum Commands {
     /// Search the text in the document like 'grep'
     Grep(GrepArgs),
 
+    /// Search and replace in document text and tables
     Replace(ReplaceArgs),
 }
 
@@ -43,11 +44,13 @@ struct GrepArgs {
 
 #[derive(Args)]
 struct ReplaceArgs {
-    regex: String,
+    regex: String,  // TODO can we inherit this?
 
+    /// The replacement text
     replace: String,
 
-    out_file: String
+    /// The output file to write to. If ommitted writing is done to the input file.
+    out_file: Option<String>
 }
 
 fn main() {

@@ -21,8 +21,16 @@ impl XMLUtil {
         Self::snr_xml(dir, src_file, None, Some(pattern), None, None);
     }
 
-    pub fn replace_xml(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &str) {
-        Self::snr_xml(dir, src_file, Some(vec!("word/document.xml".to_string())), Some(pattern), Some(replace), Some(output_file));
+    pub fn replace_xml(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<String>) {
+        let out_file;
+
+        if let Some(of) = output_file {
+            out_file = of.as_str();
+        } else {
+            out_file = src_file;
+        }
+
+        Self::snr_xml(dir, src_file, Some(vec!("word/document.xml".to_string())), Some(pattern), Some(replace), Some(out_file));
     }
 
     fn snr_xml(dir: &str, src_file: &str, files: Option<Vec<String>>, pattern: Option<&str>, replace: Option<&str>, output_file: Option<&str>) {
