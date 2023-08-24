@@ -44,7 +44,8 @@ struct GrepArgs {
 
 #[derive(Args)]
 struct ReplaceArgs {
-    regex: String,  // TODO can we inherit this?
+    /// The regular expression to search for
+    regex: String,
 
     /// The replacement text
     replace: String,
