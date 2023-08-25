@@ -9,31 +9,43 @@ use walkdir::WalkDir;
 
 use crate::zip_util::ZipUtil;
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum Mode {
+    Attribute,
+    Value
+}
+
 pub struct XMLUtil {
 }
 
 impl XMLUtil {
     pub fn cat(dir: &str, src_file: &str) {
-        Self::snr_xml(dir, src_file, None, None, None, None);
+        Self::snr_xml(Mode::Value, dir, src_file, None, None, None, None);
     }
 
     pub fn grep_xml(dir: &str, src_file: &str, pattern: &str) {
-        Self::snr_xml(dir, src_file, None, Some(pattern), None, None);
+        Self::snr_xml(Mode::Value, dir, src_file, None, Some(pattern), None, None);
     }
 
     pub fn replace_xml(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<String>) {
-        let out_file;
+        let out_file = match output_file {
+            Some(of) => of.as_str(),
+            None => src_file
+        };
 
-        if let Some(of) = output_file {
-            out_file = of.as_str();
-        } else {
-            out_file = src_file;
-        }
-
-        Self::snr_xml(dir, src_file, Some(vec!("word/document.xml".to_string())), Some(pattern), Some(replace), Some(out_file));
+        Self::snr_xml(Mode::Value, dir, src_file, Some(vec!("word/document.xml")), Some(pattern), Some(replace), Some(out_file));
     }
 
-    fn snr_xml(dir: &str, src_file: &str, files: Option<Vec<String>>, pattern: Option<&str>, replace: Option<&str>, output_file: Option<&str>) {
+    pub fn replace_attr(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<String>) {
+        let out_file = match output_file {
+            Some(of) => of.as_str(),
+            None => src_file
+        };
+
+        Self::snr_xml(Mode::Attribute, dir, src_file, Some(vec!("word/_rels/document.xml.rels")), Some(pattern), Some(replace), Some(out_file));
+    }
+
+    fn snr_xml(mode: Mode, dir: &str, src_file: &str, files: Option<Vec<&str>>, pattern: Option<&str>, replace: Option<&str>, output_file: Option<&str>) {
         let mut base_dir = dir.to_owned();
         if !dir.ends_with("/") {
             base_dir.push('/');
@@ -47,16 +59,20 @@ impl XMLUtil {
         }
 
         for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
-            if entry.file_type().is_file() && entry.file_name().to_string_lossy().ends_with(".xml") {
+            if entry.file_type().is_file() {
                 let sub_path = Self::get_sub_path(entry.path(), &base_dir);
 
                 if let Some(file_list) = &files {
-                    if !file_list.contains(&sub_path) {
+                    if !file_list.contains(&sub_path.as_str()) {
+                        continue;
+                    }
+                } else {
+                    if !(sub_path.ends_with(".xml")) {
                         continue;
                     }
                 }
 
-                Self::snr_xml_file(entry.path(), &regex, &replace, &base_dir, src_file);
+                Self::snr_xml_file(mode, entry.path(), &regex, &replace, src_file);
             }
         }
 
@@ -65,7 +81,7 @@ impl XMLUtil {
         }
     }
 
-    fn snr_xml_file(path: &Path, regex: &Option<Regex>, replace: &Option<&str>, base_dir: &str, src_file: &str) {
+    fn snr_xml_file(mode: Mode, path: &Path, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
         // detect BOM (Byte Order Mark)
         let bom = Self::get_bom(path);
         let f = File::open(path).unwrap(); // TODO
@@ -82,7 +98,14 @@ impl XMLUtil {
 
         match dom_res {
             Ok(dom) => {
-                if Self::snr_xml_node(&dom, regex, replace, path, base_dir, src_file) {
+                let changed = match mode {
+                    Mode::Attribute =>
+                        Self::snr_xml_attribute(&dom, regex, replace, src_file),
+                    Mode::Value =>
+                        Self::snr_xml_node(&dom, regex, replace, src_file)
+                };
+
+                if changed {
                     std::fs::write(path, dom.to_string()).unwrap();
                 }
             },
@@ -90,12 +113,48 @@ impl XMLUtil {
         }
     }
 
-    fn snr_xml_node(node: &RefNode, regex: &Option<Regex>, replace: &Option<&str>, path: &Path, base_dir: &str, src_file: &str)
+    fn snr_xml_attribute(node: &RefNode, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str)
+        -> bool {
+        let mut changed = false;
+
+        for n in node.child_nodes() {
+            for (_, mut attr) in n.attributes() {
+                // let v = av.value();
+                // println!("Name: {} = {:?}", an, v);
+                if let Some(v) = attr.value() {
+                    if v.len() == 0 {
+                        continue;
+                    }
+
+                    match regex {
+                        Some(r) => {
+                            if r.is_match(&v) {
+                                println!("{}: {}={}", src_file, attr.node_name(), v);
+                                if let Some(repl) = replace {
+                                    let res = r.replace_all(&v, *repl);
+                                    let _ = attr.set_value(&res);
+                                    changed = true;
+                                }
+                            }
+                        },
+                        None => {
+                            println!("{}: {}={}", src_file, attr.node_name(), v);
+                        }
+                    }
+                }
+            }
+            changed |= Self::snr_xml_attribute(&n, regex, replace, src_file);
+        }
+
+        changed
+    }
+
+    fn snr_xml_node(node: &RefNode, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str)
         -> bool {
         let mut changed = false;
 
         for mut n in node.child_nodes() {
-            if let Option::Some(v) = n.node_value() {
+            if let Some(v) = n.node_value() {
                 if v.len() == 0 {
                     continue;
                 }
@@ -116,7 +175,7 @@ impl XMLUtil {
                     }
                 }
             }
-            changed |= Self::snr_xml_node(&n, regex, replace, path, base_dir, src_file);
+            changed |= Self::snr_xml_node(&n, regex, replace, src_file);
         }
 
         changed

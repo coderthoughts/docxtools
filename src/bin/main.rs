@@ -30,6 +30,9 @@ enum Commands {
 
     /// Search and replace in document text and tables
     Replace(ReplaceArgs),
+
+    /// Search and replace hyperlinks in the document
+    ReplaceLinks(ReplaceArgs)
 }
 
 #[derive(Args)]
@@ -84,6 +87,11 @@ fn real_main(args: Cli) -> i32 {
         },
         Commands::Replace(replace_args) => {
             XMLUtil::replace_xml(&temp_dir, &src_file,
+                &replace_args.regex, &replace_args.replace,
+                &replace_args.out_file);
+        },
+        Commands::ReplaceLinks(replace_args) => {
+            XMLUtil::replace_attr(&temp_dir, &src_file,
                 &replace_args.regex, &replace_args.replace,
                 &replace_args.out_file);
         }
