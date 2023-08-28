@@ -7,6 +7,7 @@ use xml_dom::level2::*;
 use unicode_bom::Bom;
 use walkdir::WalkDir;
 
+use crate::file_util::FileUtil;
 use crate::zip_util::ZipUtil;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -60,7 +61,7 @@ impl XMLUtil {
 
         for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
             if entry.file_type().is_file() {
-                let sub_path = Self::get_sub_path(entry.path(), &base_dir);
+                let sub_path = FileUtil::get_sub_path(entry.path(), &base_dir);
 
                 if let Some(file_list) = &files {
                     if !file_list.contains(&sub_path.as_str()) {
@@ -185,33 +186,5 @@ impl XMLUtil {
         let mut file = File::open(path).unwrap();
         Bom::from(&mut file)
     }
-
-    fn get_sub_path(path: &Path, base_dir: &str) -> String {
-        let sub_path;
-
-        let full_path = path.to_string_lossy();
-        if full_path.starts_with(base_dir) {
-            sub_path = &full_path[base_dir.len()..];
-        } else {
-            sub_path = &full_path;
-        }
-
-        sub_path.to_owned()
-    }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::XMLUtil;
-    use std::path::Path;
-
-    #[test]
-    fn test_get_sub_path() {
-        let p = Path::new("/some/where/on/the/rainbow.docx");
-        let b = "/some/where/on/";
-        assert_eq!("the/rainbow.docx", XMLUtil::get_sub_path(p, b));
-
-        let p2 = Path::new("/elsewhere/cloud.docx");
-        assert_eq!("/elsewhere/cloud.docx", XMLUtil::get_sub_path(p2, b));
-    }
-}

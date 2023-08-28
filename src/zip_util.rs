@@ -141,3 +141,50 @@ impl ZipUtil {
         Result::Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::file_util::FileUtil;
+    use super::ZipUtil;
+    use std::{path::Path, fs, io};
+    use walkdir::WalkDir;
+    use testdir::testdir;
+
+    #[test]
+    fn test_unzip() -> io::Result<()> {
+        let zipfile = "./src/test/test_zip.zip";
+        let outdir = testdir!();
+
+        ZipUtil::read_zip(zipfile, &outdir.to_string_lossy())?;
+
+        let wd = WalkDir::new(&outdir);
+        let extracts: Vec<String> = wd.into_iter()
+            .map(|e| FileUtil::get_sub_path(&e.unwrap().path(), &outdir.to_string_lossy()))
+            .filter(|e| !e.starts_with("/"))
+            .filter(|e| e.contains('.'))
+            .collect();
+
+        assert!(extracts.contains(&"foo.test.txt".into()));
+        assert!(extracts.contains(&"empty.file".into()));
+        assert!(extracts.contains(&"sub/sub/[Content_Types].xml".into()));
+        assert_eq!(3, extracts.len(), "Should be only 3 files");
+
+        let empty_file = Path::new(&outdir).join("empty.file");
+        assert!(empty_file.is_file());
+        assert_eq!(0, empty_file.metadata()?.len(), "This file is empty");
+
+        let test_file = Path::new(&outdir).join("foo.test.txt");
+        assert!(test_file.is_file());
+        assert_eq!(4, test_file.metadata()?.len());
+        let test_cont = fs::read_to_string(test_file)?;
+        assert_eq!("foo\n", test_cont);
+
+        let ct_file = Path::new(&outdir).join("sub/sub/[Content_Types].xml");
+        assert!(ct_file.is_file());
+        assert_eq!(1312, ct_file.metadata()?.len());
+        let ct_cont = fs::read_to_string(ct_file)?;
+        assert!(ct_cont.starts_with("<?xml version"));
+
+        Ok(())
+    }
+}
