@@ -199,3 +199,19 @@ impl XMLUtil {
         sub_path.to_owned()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::XMLUtil;
+    use std::path::Path;
+
+    #[test]
+    fn test_get_sub_path() {
+        let p = Path::new("/some/where/on/the/rainbow.docx");
+        let b = "/some/where/on/";
+        assert_eq!("the/rainbow.docx", XMLUtil::get_sub_path(p, b));
+
+        let p2 = Path::new("/elsewhere/cloud.docx");
+        assert_eq!("/elsewhere/cloud.docx", XMLUtil::get_sub_path(p2, b));
+    }
+}
