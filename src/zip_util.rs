@@ -179,11 +179,55 @@ mod tests {
         let test_cont = fs::read_to_string(test_file)?;
         assert_eq!("foo\n", test_cont);
 
-        let ct_file = Path::new(&outdir).join("sub/sub/[Content_Types].xml");
+        let ct_file = outdir.join("sub/sub/[Content_Types].xml");
         assert!(ct_file.is_file());
         assert_eq!(1312, ct_file.metadata()?.len());
         let ct_cont = fs::read_to_string(ct_file)?;
         assert!(ct_cont.starts_with("<?xml version"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_zip() -> io::Result<()> {
+        let indir = "./src/test/test_tree1";
+        let outdir = testdir!();
+        let zipfile = outdir.join("out.zip");
+
+        assert!(!zipfile.exists(), "Precondition");
+        ZipUtil::write_zip(indir, &zipfile.to_string_lossy())?;
+        assert!(zipfile.exists());
+
+        // Now unzip the zipfile we just wrote again to see if it contains the right stuff
+        let expldir = outdir.join("expl");
+        ZipUtil::read_zip(&zipfile.to_string_lossy(), &expldir.to_string_lossy())?;
+
+        let extracts: Vec<String> = WalkDir::new(&expldir).into_iter()
+            .map(|e| FileUtil::get_sub_path(&e.unwrap().path(), &expldir.to_string_lossy()))
+            .filter(|e| !e.starts_with("/"))
+            .filter(|e| e.contains('.'))
+            .collect();
+
+        assert_eq!(3, extracts.len());
+        assert!(extracts.contains(&"foo.test.txt".into()));
+        assert!(extracts.contains(&"empty.file".into()));
+        assert!(extracts.contains(&"sub/sub/[Content_Types].xml".into()));
+
+        let empty_file = Path::new(&expldir).join("empty.file");
+        assert!(empty_file.is_file());
+        assert_eq!(0, empty_file.metadata()?.len(), "This file is empty");
+
+        let org_file = indir.to_string() + "/foo.test.txt";
+        let org_cont = fs::read_to_string(&org_file)?;
+        let test_file = expldir.join("foo.test.txt");
+        let test_cont = fs::read_to_string(&test_file)?;
+        assert_eq!(org_cont, test_cont, "{:?} should contain the same as {:?}", org_file, test_file);
+
+        let cto_file = indir.to_string() + "/sub/sub/[Content_Types].xml";
+        let cto_cont = fs::read_to_string(&cto_file)?;
+        let ctt_file = expldir.join("sub/sub/[Content_Types].xml");
+        let ctt_cont = fs::read_to_string(&ctt_file)?;
+        assert_eq!(cto_cont, ctt_cont, "{:?} should contain the same as {:?}", cto_file, ctt_file);
 
         Ok(())
     }
