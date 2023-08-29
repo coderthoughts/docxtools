@@ -11,7 +11,7 @@ useful for batch operations.
 General usage:
 
 ```
-$ .docxtools
+$ ./docxtools
 Usage: docxtools [OPTIONS] <IN_FILE> <COMMAND>
 
 Commands:
