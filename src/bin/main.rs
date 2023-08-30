@@ -86,14 +86,16 @@ fn real_main(args: Cli) -> i32 {
             XMLUtil::grep_xml(&temp_dir, &src_file, &grep_args.regex)
         },
         Commands::Replace(replace_args) => {
+            // let x = replace_args.out_file.as_deref();
+
             XMLUtil::replace_xml(&temp_dir, &src_file,
                 &replace_args.regex, &replace_args.replace,
-                &replace_args.out_file);
+                &replace_args.out_file.as_deref());
         },
         Commands::ReplaceLinks(replace_args) => {
             XMLUtil::replace_attr(&temp_dir, &src_file,
                 &replace_args.regex, &replace_args.replace,
-                &replace_args.out_file);
+                &replace_args.out_file.as_deref());
         }
     }
 

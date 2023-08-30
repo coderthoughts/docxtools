@@ -28,18 +28,18 @@ impl XMLUtil {
         Self::snr_xml(Mode::Value, dir, src_file, None, Some(pattern), None, None);
     }
 
-    pub fn replace_xml(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<String>) {
+    pub fn replace_xml(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<&str>) {
         let out_file = match output_file {
-            Some(of) => of.as_str(),
+            Some(of) => of,
             None => src_file
         };
 
         Self::snr_xml(Mode::Value, dir, src_file, Some(vec!("word/document.xml")), Some(pattern), Some(replace), Some(out_file));
     }
 
-    pub fn replace_attr(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<String>) {
+    pub fn replace_attr(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<&str>) {
         let out_file = match output_file {
-            Some(of) => of.as_str(),
+            Some(of) => of,
             None => src_file
         };
 
@@ -251,7 +251,8 @@ mod tests {
         assert!(!before.contains("zzz"), "Precondition");
 
         XMLUtil::replace_xml(&testdir.to_string_lossy(), "my-source.docx",
-            "[Ss]ome", "zzz", &None);
+            "[Ss]ome", "zzz",
+            &Some(&testdir.join("output.docx").to_string_lossy()));
 
         // Check that the replacement worked as expected
         let after = fs::read_to_string(testdir.join("word/document.xml"))?;
@@ -279,7 +280,8 @@ mod tests {
         assert!(before_doc.contains(">www.example.com<"), "Precondition");
 
         XMLUtil::replace_attr(&testdir.to_string_lossy(), "my-source.docx",
-            "www.example.com", "foobar.org", &None);
+            "www.example.com", "foobar.org",
+            &Some(&testdir.join("output-2.docx").to_string_lossy()));
 
         let after_doc = fs::read_to_string("./src/test/test_tree2/word/document.xml")?;
         let after = fs::read_to_string(testdir.join("word/_rels/document.xml.rels"))?;
