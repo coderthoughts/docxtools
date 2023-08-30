@@ -191,11 +191,14 @@ impl XMLUtil {
 #[cfg(test)]
 mod tests {
     use super::XMLUtil;
+    use serial_test::serial;
     use std::{fs, io};
     use std::path::Path;
     use testdir::testdir;
 
     // Macro to wrap around any statement to capture stdout.
+    // Note tests using this need to be annotated with #[serial] as multiple concurrent
+    // redirections of stdout fail.
     macro_rules! capture_stdout {
         ($test:expr) => {{
             use gag::BufferRedirect;
@@ -214,12 +217,22 @@ mod tests {
     }
 
     #[test]
-    fn test_cat() -> io::Result<()> {
+    #[serial] // This test has to run serially to avoid multiple tests to capture stdout
+    fn test_cat() {
         let out = capture_stdout!(XMLUtil::cat("./src/test/test_tree2", "my-file.docx"));
         assert!(out.contains("my-file.docx: Testing 123"));
         assert!(out.contains("my-file.docx: Here’s a hyperlink:"));
+    }
 
-        Ok(())
+    #[test]
+    #[serial] // This test has to run serially to avoid multiple tests to capture stdout
+    fn test_grep() {
+        let out = capture_stdout!(XMLUtil::grep_xml("./src/test/test_tree2", "doc123.docx", "[oe]re"));
+        assert!(out.contains("doc123.docx: And some some more text"));
+        assert!(out.contains("doc123.docx: Something here"));
+        assert!(out.contains("doc123.docx: Here’s a hyperlink:"));
+        assert!(out.contains("doc123.docx: And here’s just some text:"));
+        assert!(!out.contains("Target"));
     }
 
     #[test]
