@@ -13,6 +13,7 @@ unicode-bom = "2.0"
 clap = { version = "4.3.19", features = ["derive"] }
 
 [dev-dependencies]
+gag = "1.0"
 testdir = "0.8"
 
 [profile.release]

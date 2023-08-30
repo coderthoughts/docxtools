@@ -195,6 +195,33 @@ mod tests {
     use std::path::Path;
     use testdir::testdir;
 
+    // Macro to wrap around any statement to capture stdout.
+    macro_rules! capture_stdout {
+        ($test:expr) => {{
+            use gag::BufferRedirect;
+            use std::io::Read;
+
+            let mut buf = BufferRedirect::stdout().unwrap();
+
+            $test;
+
+            let mut output = String::new();
+            buf.read_to_string(&mut output).unwrap();
+            drop(buf);
+
+            output
+        }};
+    }
+
+    #[test]
+    fn test_cat() -> io::Result<()> {
+        let out = capture_stdout!(XMLUtil::cat("./src/test/test_tree2", "my-file.docx"));
+        assert!(out.contains("my-file.docx: Testing 123"));
+        assert!(out.contains("my-file.docx: Here’s a hyperlink:"));
+
+        Ok(())
+    }
+
     #[test]
     fn test_replace() -> io::Result<()> {
         let orgdir = "./src/test/test_tree2";
