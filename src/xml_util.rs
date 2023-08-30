@@ -225,6 +225,31 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_replace_hyperlink() -> io::Result<()> {
+        let orgdir = "./src/test/test_tree2";
+        let testdir = testdir!();
+
+        copy_dir_all(orgdir, &testdir)?;
+
+        let before_doc = fs::read_to_string("./src/test/test_tree2/word/document.xml")?;
+        let before = fs::read_to_string("./src/test/test_tree2/word/_rels/document.xml.rels")?;
+
+        assert!(before.contains("Target=\"http://www.example.com/\""), "Precondition");
+        assert!(before_doc.contains(">www.example.com<"), "Precondition");
+
+        XMLUtil::replace_attr(&testdir.to_string_lossy(), "my-source.docx",
+            "www.example.com", "foobar.org", &None);
+
+        let after_doc = fs::read_to_string("./src/test/test_tree2/word/document.xml")?;
+        let after = fs::read_to_string(testdir.join("word/_rels/document.xml.rels"))?;
+
+        assert!(after.contains("Target=\"http://foobar.org/\""));
+        assert!(after_doc.contains(">www.example.com<"), "Should not have changed the document text");
+
+        Ok(())
+    }
+
     fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
         fs::create_dir_all(&dst)?;
         for entry in fs::read_dir(src)? {

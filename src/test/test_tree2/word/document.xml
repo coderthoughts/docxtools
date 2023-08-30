@@ -232,14 +232,64 @@
         </w:tc>
       </w:tr>
     </w:tbl>
-    <w:p w14:paraId="661AA0A6" w14:textId="77777777" w:rsidR="00B47895" w:rsidRPr="008D365C" w:rsidRDefault="00B47895">
+    <w:p w14:paraId="661AA0A6" w14:textId="77777777" w:rsidR="00B47895" w:rsidRDefault="00B47895">
       <w:pPr>
         <w:rPr>
           <w:lang w:val="en-US"/>
         </w:rPr>
       </w:pPr>
     </w:p>
-    <w:sectPr w:rsidR="00B47895" w:rsidRPr="008D365C">
+    <w:p w14:paraId="684CE415" w14:textId="562692B0" w:rsidR="00241272" w:rsidRDefault="00241272">
+      <w:pPr>
+        <w:rPr>
+          <w:lang w:val="en-US"/>
+        </w:rPr>
+      </w:pPr>
+      <w:r>
+        <w:rPr>
+          <w:lang w:val="en-US"/>
+        </w:rPr>
+        <w:t xml:space="preserve">Here’s a hyperlink: </w:t>
+      </w:r>
+      <w:hyperlink r:id="rId4" w:history="1">
+        <w:r w:rsidRPr="00241272">
+          <w:rPr>
+            <w:rStyle w:val="Hyperlink"/>
+            <w:lang w:val="en-US"/>
+          </w:rPr>
+          <w:t>link</w:t>
+        </w:r>
+      </w:hyperlink>
+    </w:p>
+    <w:p w14:paraId="38F5C028" w14:textId="77777777" w:rsidR="00241272" w:rsidRDefault="00241272">
+      <w:pPr>
+        <w:rPr>
+          <w:lang w:val="en-US"/>
+        </w:rPr>
+      </w:pPr>
+    </w:p>
+    <w:p w14:paraId="2297FEA1" w14:textId="418C909A" w:rsidR="00241272" w:rsidRPr="008D365C" w:rsidRDefault="00241272">
+      <w:pPr>
+        <w:rPr>
+          <w:lang w:val="en-US"/>
+        </w:rPr>
+      </w:pPr>
+      <w:r>
+        <w:rPr>
+          <w:lang w:val="en-US"/>
+        </w:rPr>
+        <w:t xml:space="preserve">And here’s just some text: </w:t>
+      </w:r>
+      <w:proofErr w:type="gramStart"/>
+      <w:r>
+        <w:rPr>
+          <w:lang w:val="en-US"/>
+        </w:rPr>
+        <w:t>www.example.com</w:t>
+      </w:r>
+      <w:proofErr w:type="gramEnd"/>
+    </w:p>
+    <w:sectPr w:rsidR="00241272" w:rsidRPr="008D365C">
       <w:pgSz w:w="11906" w:h="16838"/>
       <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>
       <w:cols w:space="708"/>
