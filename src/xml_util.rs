@@ -133,7 +133,7 @@ impl XMLUtil {
                                 println!("{}: {}={}", src_file, attr.node_name(), v);
                                 if let Some(repl) = replace {
                                     let res = r.replace_all(&v, *repl);
-                                    let _ = attr.set_value(&res);
+                                    let _ = attr.set_value(&res);  // TODO
                                     changed = true;
                                 }
                             }
@@ -166,7 +166,7 @@ impl XMLUtil {
                             println!("{}: {}", src_file, v);
                             if let Some(repl) = replace {
                                 let res = r.replace_all(&v, *repl);
-                                let _ = n.set_node_value(&res);
+                                let _ = n.set_node_value(&res); // TODO
                                 changed = true;
                             }
                         }
@@ -185,6 +185,58 @@ impl XMLUtil {
     fn get_bom(path: &Path) -> Bom {
         let mut file = File::open(path).unwrap();
         Bom::from(&mut file)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::XMLUtil;
+    use std::{fs, io};
+    use std::path::Path;
+    use testdir::testdir;
+
+    #[test]
+    fn test_replace() -> io::Result<()> {
+        let orgdir = "./src/test/test_tree2";
+        let testdir = testdir!();
+
+        copy_dir_all(orgdir, &testdir)?;
+
+        let before = fs::read_to_string("./src/test/test_tree2/word/document.xml")?;
+        assert!(before.contains("And some some more text"), "Precondition");
+        assert!(before.contains("and then some"), "Precondition");
+        assert!(before.contains("Something here"), "Precondition");
+        assert!(before.contains(">some<"), "Precondition");
+        assert!(before.contains(">Some <"), "Precondition");
+        assert!(!before.contains("zzz"), "Precondition");
+
+        XMLUtil::replace_xml(&testdir.to_string_lossy(), "my-source.docx",
+            "[Ss]ome", "zzz", &None);
+
+        // Check that the replacement worked as expected
+        let after = fs::read_to_string(testdir.join("word/document.xml"))?;
+        assert!(after.contains("And zzz zzz more text"));
+        assert!(after.contains("and then zzz"));
+        assert!(after.contains("zzzthing here"));
+        assert!(after.contains(">zzz"));
+        assert!(!after.contains("some"));
+        assert!(!after.contains("Some"));
+
+        Ok(())
+    }
+
+    fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
+        fs::create_dir_all(&dst)?;
+        for entry in fs::read_dir(src)? {
+            let entry = entry?;
+            let ty = entry.file_type()?;
+            if ty.is_dir() {
+                copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+            } else {
+                fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+            }
+        }
+        Ok(())
     }
 }
 
