@@ -92,7 +92,7 @@ impl XMLUtil {
             // Remove the BOM bytes from the stream as they will cause the XML parsing to fail
             let len = bom.len();
             let mut bom_prefix = vec![0; len];
-            let _ = r.read_exact(&mut bom_prefix);
+            r.read_exact(&mut bom_prefix).unwrap();
         }
 
         let dom_res = read_reader(r);
@@ -133,7 +133,7 @@ impl XMLUtil {
                                 println!("{}: {}={}", src_file, attr.node_name(), v);
                                 if let Some(repl) = replace {
                                     let res = r.replace_all(&v, *repl);
-                                    let _ = attr.set_value(&res);  // TODO
+                                    attr.set_value(&res).unwrap();  // TODO
                                     changed = true;
                                 }
                             }
@@ -166,7 +166,7 @@ impl XMLUtil {
                             println!("{}: {}", src_file, v);
                             if let Some(repl) = replace {
                                 let res = r.replace_all(&v, *repl);
-                                let _ = n.set_node_value(&res); // TODO
+                                n.set_node_value(&res).unwrap(); // TODO
                                 changed = true;
                             }
                         }
