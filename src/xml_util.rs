@@ -1,9 +1,9 @@
 use regex::Regex;
 use std::fs::File;
-use std::io::{BufReader,Read};
+use std::io::{BufReader, Read};
 use std::path::Path;
+use xml_dom::level2::{Attribute, Node, RefNode};
 use xml_dom::parser::read_reader;
-use xml_dom::level2::*;
 use unicode_bom::Bom;
 use walkdir::WalkDir;
 
