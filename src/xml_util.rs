@@ -34,7 +34,7 @@ impl XMLUtil {
             None => src_file
         };
 
-        Self::snr_xml(Mode::Value, dir, src_file, Some(vec!("word/document.xml")), Some(pattern), Some(replace), Some(out_file));
+        Self::snr_xml(Mode::Value, dir, src_file, Some(vec!("word/document(\\d*).xml")), Some(pattern), Some(replace), Some(out_file));
     }
 
     pub fn replace_attr(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<&str>) {
@@ -43,7 +43,7 @@ impl XMLUtil {
             None => src_file
         };
 
-        Self::snr_xml(Mode::Attribute, dir, src_file, Some(vec!("word/_rels/document.xml.rels")), Some(pattern), Some(replace), Some(out_file));
+        Self::snr_xml(Mode::Attribute, dir, src_file, Some(vec!("word/_rels/document(\\d*).xml.rels")), Some(pattern), Some(replace), Some(out_file));
     }
 
     fn snr_xml(mode: Mode, dir: &str, src_file: &str, files: Option<Vec<&str>>, pattern: Option<&str>, replace: Option<&str>, output_file: Option<&str>) {
@@ -64,7 +64,7 @@ impl XMLUtil {
                 let sub_path = FileUtil::get_sub_path(entry.path(), &base_dir);
 
                 if let Some(file_list) = &files {
-                    if !file_list.contains(&sub_path.as_str()) {
+                    if !Self::list_matches(&file_list, &sub_path.as_str()) {
                         continue;
                     }
                 } else {
@@ -186,6 +186,17 @@ impl XMLUtil {
         let mut file = File::open(path).unwrap();
         Bom::from(&mut file)
     }
+
+    fn list_matches(file_list: &[&str], name: &str) -> bool {
+        for file_pat in file_list {
+            let regex = Regex::new(*file_pat).unwrap();
+            if regex.is_match(name) {
+                return true;
+            }
+        }
+
+        false
+    }
 }
 
 #[cfg(test)]
@@ -283,11 +294,53 @@ mod tests {
             "www.example.com", "foobar.org",
             &Some(&testdir.join("output-2.docx").to_string_lossy()));
 
-        let after_doc = fs::read_to_string("./src/test/test_tree2/word/document.xml")?;
+        let after_doc = fs::read_to_string(testdir.join("word/document.xml"))?;
         let after = fs::read_to_string(testdir.join("word/_rels/document.xml.rels"))?;
 
         assert!(after.contains("Target=\"http://foobar.org/\""));
         assert!(after_doc.contains(">www.example.com<"), "Should not have changed the document text");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_replace_both() -> io::Result<()> {
+        let orgdir = "./src/test/test_tree3";
+        let testdir = testdir!();
+
+        copy_dir_all(orgdir, &testdir)?;
+
+        let before = fs::read_to_string("./src/test/test_tree3/word/document2.xml")?;
+        assert!(before.contains("And some some more text"), "Precondition");
+        assert!(before.contains("and then some"), "Precondition");
+        assert!(before.contains("Something here"), "Precondition");
+        assert!(before.contains(">some<"), "Precondition");
+        assert!(before.contains(">Some <"), "Precondition");
+        assert!(before.contains(">www.example.com<"), "Precondition");
+        assert!(!before.contains("zzz"), "Precondition");
+
+        let before_rels = fs::read_to_string("./src/test/test_tree3/word/_rels/document3.xml.rels")?;
+        assert!(before_rels.contains("Target=\"http://www.example.com/\""), "Precondition");
+
+        XMLUtil::replace_xml(&testdir.to_string_lossy(), "my-source.docx",
+            "[Ss]ome", "zzz",
+            &Some(&testdir.join("output.docx").to_string_lossy()));
+        XMLUtil::replace_attr(&testdir.to_string_lossy(), "my-source.docx",
+            "www.example.com", "foobar.org",
+            &Some(&testdir.join("output-2.docx").to_string_lossy()));
+
+        // Check that the replacement worked as expected
+        let after = fs::read_to_string(testdir.join("word/document2.xml"))?;
+        assert!(after.contains("And zzz zzz more text"));
+        assert!(after.contains("and then zzz"));
+        assert!(after.contains("zzzthing here"));
+        assert!(after.contains(">zzz"));
+        assert!(after.contains(">www.example.com<"), "Should not have changed the document text");
+        assert!(!after.contains("some"));
+        assert!(!after.contains("Some"));
+
+        let after_rels = fs::read_to_string(testdir.join("word/_rels/document3.xml.rels"))?;
+        assert!(after_rels.contains("Target=\"http://foobar.org/\""));
 
         Ok(())
     }
