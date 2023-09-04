@@ -1,8 +1,9 @@
 use regex::Regex;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
-use xml_dom::level2::{Attribute, Node, RefNode};
+use xml_dom::level2::{Attribute, Node, RefNode, Element};
 use xml_dom::parser::read_reader;
 use unicode_bom::Bom;
 use walkdir::WalkDir;
@@ -29,21 +30,43 @@ impl XMLUtil {
     }
 
     pub fn replace_xml(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<&str>) {
+        let (_, files) = Self::get_files_with_content_type(dir,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
+
         let out_file = match output_file {
             Some(of) => of,
             None => src_file
         };
 
-        Self::snr_xml(Mode::Value, dir, src_file, Some(vec!("word/document(\\d*).xml")), Some(pattern), Some(replace), Some(out_file));
+        let fref = files.iter().map(AsRef::as_ref).collect();
+        Self::snr_xml(Mode::Value, dir, src_file, Some(fref), Some(pattern), Some(replace), Some(out_file));
     }
 
     pub fn replace_attr(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<&str>) {
+        let (defaults, files) = Self::get_files_with_content_type(dir,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
+        let rels_extension = &defaults["application/vnd.openxmlformats-package.relationships+xml"];
+
+        let mut rels_files = vec!();
+        for f in files {
+            let last_slash = f.rfind('/').unwrap();
+            let mut new_fn = String::new();
+            new_fn.push_str(&f[..last_slash]);
+            new_fn.push_str("/_");
+            new_fn.push_str(rels_extension);
+            new_fn.push_str(&f[last_slash..]);
+            new_fn.push('.');
+            new_fn.push_str(rels_extension);
+            rels_files.push(new_fn);
+        }
+
         let out_file = match output_file {
             Some(of) => of,
             None => src_file
         };
 
-        Self::snr_xml(Mode::Attribute, dir, src_file, Some(vec!("word/_rels/document(\\d*).xml.rels")), Some(pattern), Some(replace), Some(out_file));
+        let fref = rels_files.iter().map(AsRef::as_ref).collect();
+        Self::snr_xml(Mode::Attribute, dir, src_file, Some(fref), Some(pattern), Some(replace), Some(out_file));
     }
 
     fn snr_xml(mode: Mode, dir: &str, src_file: &str, files: Option<Vec<&str>>, pattern: Option<&str>, replace: Option<&str>, output_file: Option<&str>) {
@@ -64,7 +87,7 @@ impl XMLUtil {
                 let sub_path = FileUtil::get_sub_path(entry.path(), &base_dir);
 
                 if let Some(file_list) = &files {
-                    if !Self::list_matches(&file_list, &sub_path.as_str()) {
+                    if !file_list.contains(&sub_path.as_str()) {
                         continue;
                     }
                 } else {
@@ -120,8 +143,6 @@ impl XMLUtil {
 
         for n in node.child_nodes() {
             for (_, mut attr) in n.attributes() {
-                // let v = av.value();
-                // println!("Name: {} = {:?}", an, v);
                 if let Some(v) = attr.value() {
                     if v.len() == 0 {
                         continue;
@@ -187,15 +208,71 @@ impl XMLUtil {
         Bom::from(&mut file)
     }
 
-    fn list_matches(file_list: &[&str], name: &str) -> bool {
-        for file_pat in file_list {
-            let regex = Regex::new(*file_pat).unwrap();
-            if regex.is_match(name) {
-                return true;
+    fn get_content_types(dir: &str) -> (HashMap<String, String>, HashMap<String, String>) {
+        let mut defaults = HashMap::new();
+        let mut mappings = HashMap::new();
+
+        let path = Path::new(dir).join("[Content_Types].xml");
+
+        let bom = Self::get_bom(&path);
+        let f = File::open(path).unwrap(); // TODO
+        let mut r = BufReader::new(f);
+
+        if bom != Bom::Null {
+            // Remove the BOM bytes from the stream as they will cause the XML parsing to fail
+            let len = bom.len();
+            let mut bom_prefix = vec![0; len];
+            r.read_exact(&mut bom_prefix).unwrap();
+        }
+
+        let dom_res = read_reader(r).unwrap();
+        for n in dom_res.child_nodes() {
+            if n.local_name() == "Types" {
+                for m in n.child_nodes() {
+                    match m.local_name().as_str() {
+                        "Default" => {
+                            let en = m.get_attribute("Extension");
+                            let ct = m.get_attribute("ContentType");
+
+                            if en.is_some() && ct.is_some() {
+                                defaults.insert(ct.unwrap(), en.unwrap());
+                            }
+                        },
+                        "Override" => {
+                            let pn = m.get_attribute("PartName");
+                            let ct = m.get_attribute("ContentType");
+
+                            if pn.is_some() && ct.is_some() {
+                                let pns = pn.unwrap();
+                                let rel_pn;
+                                if pns.starts_with('/') {
+                                    rel_pn = &pns[1..];
+                                } else {
+                                    rel_pn = &pns;
+                                }
+
+                                mappings.insert(rel_pn.to_owned(), ct.unwrap());
+                            }
+                        },
+                        _ => {}
+                    }
+                }
             }
         }
 
-        false
+        (defaults, mappings)
+    }
+
+    fn get_files_with_content_type(dir: &str, content_type: &str) -> (HashMap<String, String>, Vec<String>) {
+        let (defaults, mappings) = Self::get_content_types(dir);
+
+        let mut result = vec!();
+        for (file, ct) in &mappings {
+            if ct == content_type {
+                result.push(file.to_owned());
+            }
+        }
+        (defaults, result)
     }
 }
 
@@ -306,7 +383,8 @@ mod tests {
     #[test]
     fn test_replace_both() -> io::Result<()> {
         let orgdir = "./src/test/test_tree3";
-        let testdir = testdir!();
+        let testroot = testdir!();
+        let testdir = testroot.join("subdir");
 
         copy_dir_all(orgdir, &testdir)?;
 
@@ -319,15 +397,15 @@ mod tests {
         assert!(before.contains(">www.example.com<"), "Precondition");
         assert!(!before.contains("zzz"), "Precondition");
 
-        let before_rels = fs::read_to_string("./src/test/test_tree3/word/_rels/document3.xml.rels")?;
+        let before_rels = fs::read_to_string("./src/test/test_tree3/word/_rels/document2.xml.rels")?;
         assert!(before_rels.contains("Target=\"http://www.example.com/\""), "Precondition");
 
         XMLUtil::replace_xml(&testdir.to_string_lossy(), "my-source.docx",
             "[Ss]ome", "zzz",
-            &Some(&testdir.join("output.docx").to_string_lossy()));
+            &Some(&testroot.join("output.docx").to_string_lossy()));
         XMLUtil::replace_attr(&testdir.to_string_lossy(), "my-source.docx",
             "www.example.com", "foobar.org",
-            &Some(&testdir.join("output-2.docx").to_string_lossy()));
+            &Some(&testroot.join("output-2.docx").to_string_lossy()));
 
         // Check that the replacement worked as expected
         let after = fs::read_to_string(testdir.join("word/document2.xml"))?;
@@ -339,7 +417,7 @@ mod tests {
         assert!(!after.contains("some"));
         assert!(!after.contains("Some"));
 
-        let after_rels = fs::read_to_string(testdir.join("word/_rels/document3.xml.rels"))?;
+        let after_rels = fs::read_to_string(testdir.join("word/_rels/document2.xml.rels"))?;
         assert!(after_rels.contains("Target=\"http://foobar.org/\""));
 
         Ok(())
