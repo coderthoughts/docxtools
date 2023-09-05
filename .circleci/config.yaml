@@ -1,0 +1,16 @@
+version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: cimg/rust:1.72
+    steps:
+      - checkout
+      - run: echo "this is the build job"
+  test:
+    docker:
+      - image: cimg/rust:1.72
+    steps:
+      - checkout
+      - run: echo "this is the test job"
+
