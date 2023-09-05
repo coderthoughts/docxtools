@@ -14,3 +14,8 @@ jobs:
       - checkout
       - run: echo "this is the test job"
 
+workflows:
+  build_and_test:
+    jobs:
+      - build
+      - test
