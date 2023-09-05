@@ -6,11 +6,16 @@ jobs:
       - image: cimg/rust:1.72
     steps:
       - checkout
-      - run: echo "this is the build job"
+      - run: cargo build --release
   test:
     docker:
       - image: cimg/rust:1.72
     steps:
       - checkout
-      - run: echo "this is the test job"
+      - run: cargo test
 
+workflows:
+  build_and_test:
+    jobs:
+      - build
+      - test
