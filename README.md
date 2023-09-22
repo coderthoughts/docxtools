@@ -63,6 +63,8 @@ Change the word 'Test' or 'test' into zzzz and write the modifications to a new 
 $ docxtools docs/test.docx replace '[Tt]est' zzzz docs/test_mod1.docx
 ```
 
+Note: until https://github.com/coderthoughts/docxtools/issues/2 is fixed, please double check that the result for the `replace` operation is as expected (only applies to `replace`, not to `replace-links`).
+
 ### Replace all occurrences of a hyperlink with another
 
 Replace all occurrences of `https://main--test--hlxsites.hlx.page` with `https://foo.bar.com`. Any subpaths after the
