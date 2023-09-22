@@ -74,7 +74,8 @@ $ docxtools docs/links.docx replace-links https://main--test--hlxsites.hlx.page 
 
 It's also possible to use capture groups in the regular expressions and replacements. For example let's say you want
 to replace all links of either `http:` or `https:` from `www.example.com` to `http(s)://www.foo.bar/` but not any other 
-URLs and you want to keep the protocol intact, then you can capture the protocol and use reference it in the replacement
+URLs and you want to keep the protocol intact.
+For this can capture the protocol and reference it in the replacement
 using the usual Regular Expression capturing groups (brackets) and references to these with the `$<group#>` syntax:
 
 ```
