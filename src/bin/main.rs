@@ -26,9 +26,11 @@ enum Commands {
     Cat(CatArgs),
 
     /// Search the text in the document like 'grep'
+    #[command(name = "_grep")]
     Grep(GrepArgs),
 
     /// Search and replace in document text and tables
+    #[command(name = "_replace")]
     Replace(ReplaceArgs),
 
     /// Search and replace hyperlinks in the document
