@@ -367,6 +367,20 @@ mod tests {
     }
 
     #[test]
+    #[serial]
+    fn test_links() {
+        let out = capture_stdout!(
+            XMLUtil::cat_rel_attr (
+                "Relationship", "Target",
+                "Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                "./src/test/test_tree4", "testing789.docx"));
+        assert!(out.contains("testing789.docx: http://www.example.com/somewhere"));
+        assert!(out.contains("testing789.docx: https://www.example.com/somewhere"));
+        assert!(out.contains("testing789.docx: file://www.example.com/infosheet.pdf"));
+        assert!(!out.contains("Target=webSettings.xml"))
+    }
+
+    #[test]
     fn test_replace() -> io::Result<()> {
         let orgdir = "./src/test/test_tree2";
         let testdir = testdir!();
