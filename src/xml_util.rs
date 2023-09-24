@@ -11,8 +11,14 @@ use walkdir::WalkDir;
 use crate::file_util::FileUtil;
 use crate::zip_util::ZipUtil;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Mode {
+    AttrCondition {
+        tagname: String,
+        attrname: String,
+        condkey: String,
+        condval: String,
+    },
     Attribute,
     Value
 }
@@ -23,6 +29,18 @@ pub struct XMLUtil {
 impl XMLUtil {
     pub fn cat(dir: &str, src_file: &str) {
         Self::snr_xml(Mode::Value, dir, src_file, None, None, None, None);
+    }
+
+    pub fn cat_rel_attr(el_name: &str, attr_name: &str, cond_key: &str, cond_val: &str,
+            dir: &str, src_file: &str) {
+        let fref = Self::get_rel_files(dir);
+
+        let mode = Mode::AttrCondition {
+                tagname: el_name.into(), attrname: attr_name.into(),
+                condkey: cond_key.into(), condval: cond_val.into()
+            };
+        Self::snr_xml(mode, dir, src_file, Some(fref.iter().map(AsRef::as_ref).collect()),
+            None, None, None);
     }
 
     pub fn grep_xml(dir: &str, src_file: &str, pattern: &str) {
@@ -42,31 +60,37 @@ impl XMLUtil {
         Self::snr_xml(Mode::Value, dir, src_file, Some(fref), Some(pattern), Some(replace), Some(out_file));
     }
 
-    pub fn replace_attr(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<&str>) {
-        let (defaults, files) = Self::get_files_with_content_type(dir,
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
-        let rels_extension = &defaults["application/vnd.openxmlformats-package.relationships+xml"];
-
-        let mut rels_files = vec!();
-        for f in files {
-            let last_slash = f.rfind('/').unwrap();
-            let mut new_fn = String::new();
-            new_fn.push_str(&f[..last_slash]);
-            new_fn.push_str("/_");
-            new_fn.push_str(rels_extension);
-            new_fn.push_str(&f[last_slash..]);
-            new_fn.push('.');
-            new_fn.push_str(rels_extension);
-            rels_files.push(new_fn);
-        }
+    pub fn replace_rel_attr(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<&str>) {
+        let fref = Self::get_rel_files(dir);
 
         let out_file = match output_file {
             Some(of) => of,
             None => src_file
         };
 
-        let fref = rels_files.iter().map(AsRef::as_ref).collect();
-        Self::snr_xml(Mode::Attribute, dir, src_file, Some(fref), Some(pattern), Some(replace), Some(out_file));
+        Self::snr_xml(Mode::Attribute, dir, src_file, Some(fref.iter().map(AsRef::as_ref).collect()),
+            Some(pattern), Some(replace), Some(out_file));
+    }
+
+    fn get_rel_files(dir: &str) -> Vec<String> {
+        let (defaults, files) = Self::get_files_with_content_type(dir,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
+        let rels_extension = &defaults["application/vnd.openxmlformats-package.relationships+xml"];
+
+        let mut rels_files = vec!();
+        for f in files {
+                    let last_slash = f.rfind('/').unwrap();
+                    let mut new_fn = String::new();
+                    new_fn.push_str(&f[..last_slash]);
+                    new_fn.push_str("/_");
+                    new_fn.push_str(rels_extension);
+                    new_fn.push_str(&f[last_slash..]);
+                    new_fn.push('.');
+                    new_fn.push_str(rels_extension);
+                    rels_files.push(new_fn);
+                }
+
+        rels_files
     }
 
     fn snr_xml(mode: Mode, dir: &str, src_file: &str, files: Option<Vec<&str>>, pattern: Option<&str>, replace: Option<&str>, output_file: Option<&str>) {
@@ -96,7 +120,7 @@ impl XMLUtil {
                     }
                 }
 
-                Self::snr_xml_file(mode, entry.path(), &regex, &replace, src_file);
+                Self::snr_xml_file(&mode, entry.path(), &regex, &replace, src_file);
             }
         }
 
@@ -105,7 +129,7 @@ impl XMLUtil {
         }
     }
 
-    fn snr_xml_file(mode: Mode, path: &Path, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
+    fn snr_xml_file(mode: &Mode, path: &Path, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
         // detect BOM (Byte Order Mark)
         let bom = Self::get_bom(path);
         let f = File::open(path).unwrap(); // TODO
@@ -124,9 +148,11 @@ impl XMLUtil {
             Ok(dom) => {
                 let changed = match mode {
                     Mode::Attribute =>
-                        Self::snr_xml_attribute(&dom, regex, replace, src_file),
+                        Self::snr_xml_attribute(&mode, &dom, regex, replace, src_file),
                     Mode::Value =>
-                        Self::snr_xml_node(&dom, regex, replace, src_file)
+                        Self::snr_xml_node(&dom, regex, replace, src_file),
+                    Mode::AttrCondition{ .. } =>
+                        Self::snr_xml_attribute(&mode, &dom, &None, &None, src_file)
                 };
 
                 if changed {
@@ -137,7 +163,7 @@ impl XMLUtil {
         }
     }
 
-    fn snr_xml_attribute(node: &RefNode, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str)
+    fn snr_xml_attribute(mode: &Mode, node: &RefNode, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str)
         -> bool {
         let mut changed = false;
 
@@ -160,12 +186,29 @@ impl XMLUtil {
                             }
                         },
                         None => {
-                            println!("{}: {}={}", src_file, attr.node_name(), v);
+                            match mode {
+                                Mode::Attribute => {
+                                    println!("{}: {}={}", src_file, attr.node_name(), v);
+                                },
+                                Mode::AttrCondition {
+                                    tagname, attrname, condkey, condval
+                                } => {
+                                    if &n.node_name().to_string() == tagname
+                                        && &attr.node_name().to_string() == attrname {
+                                        if let Some(condattr) = n.get_attribute(&condkey) {
+                                            if &condattr == condval {
+                                                println!("{}: {}", src_file, v);
+                                            }
+                                        }
+                                    }
+                                },
+                                _ => {}
+                            }
                         }
                     }
                 }
             }
-            changed |= Self::snr_xml_attribute(&n, regex, replace, src_file);
+            changed |= Self::snr_xml_attribute(&mode, &n, regex, replace, src_file);
         }
 
         changed
@@ -324,6 +367,20 @@ mod tests {
     }
 
     #[test]
+    #[serial]
+    fn test_links() {
+        let out = capture_stdout!(
+            XMLUtil::cat_rel_attr (
+                "Relationship", "Target",
+                "Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                "./src/test/test_tree4", "testing789.docx"));
+        assert!(out.contains("testing789.docx: http://www.example.com/somewhere"));
+        assert!(out.contains("testing789.docx: https://www.example.com/somewhere"));
+        assert!(out.contains("testing789.docx: file://www.example.com/infosheet.pdf"));
+        assert!(!out.contains("Target=webSettings.xml"))
+    }
+
+    #[test]
     fn test_replace() -> io::Result<()> {
         let orgdir = "./src/test/test_tree2";
         let testdir = testdir!();
@@ -367,7 +424,7 @@ mod tests {
         assert!(before.contains("Target=\"http://www.example.com/\""), "Precondition");
         assert!(before_doc.contains(">www.example.com<"), "Precondition");
 
-        XMLUtil::replace_attr(&testdir.to_string_lossy(), "my-source.docx",
+        XMLUtil::replace_rel_attr(&testdir.to_string_lossy(), "my-source.docx",
             "www.example.com", "foobar.org",
             &Some(&testdir.join("output-2.docx").to_string_lossy()));
 
@@ -403,7 +460,7 @@ mod tests {
         XMLUtil::replace_xml(&testdir.to_string_lossy(), "my-source.docx",
             "[Ss]ome", "zzz",
             &Some(&testroot.join("output.docx").to_string_lossy()));
-        XMLUtil::replace_attr(&testdir.to_string_lossy(), "my-source.docx",
+        XMLUtil::replace_rel_attr(&testdir.to_string_lossy(), "my-source.docx",
             "www.example.com", "foobar.org",
             &Some(&testroot.join("output-2.docx").to_string_lossy()));
 
