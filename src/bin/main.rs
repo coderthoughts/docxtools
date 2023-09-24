@@ -25,6 +25,9 @@ enum Commands {
     /// List the text from the document to the console
     Cat(CatArgs),
 
+    /// List the links in the document to the console
+    Links(LinksArgs),
+
     /// Search the text in the document like 'grep'
     #[command(name = "_grep")]
     Grep(GrepArgs),
@@ -39,6 +42,10 @@ enum Commands {
 
 #[derive(Args)]
 struct CatArgs {
+}
+
+#[derive(Args)]
+struct LinksArgs {
 }
 
 #[derive(Args)]
@@ -84,18 +91,22 @@ fn real_main(args: Cli) -> i32 {
         Commands::Cat(_) => {
             XMLUtil::cat(&temp_dir, &src_file);
         },
+        Commands::Links(_) => {
+            XMLUtil::cat_rel_attr (
+                    "Relationship", "Target",
+                    "Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                    &temp_dir, &src_file);
+        }
         Commands::Grep(grep_args) => {
             XMLUtil::grep_xml(&temp_dir, &src_file, &grep_args.regex)
         },
         Commands::Replace(replace_args) => {
-            // let x = replace_args.out_file.as_deref();
-
             XMLUtil::replace_xml(&temp_dir, &src_file,
                 &replace_args.regex, &replace_args.replace,
                 &replace_args.out_file.as_deref());
         },
         Commands::ReplaceLinks(replace_args) => {
-            XMLUtil::replace_attr(&temp_dir, &src_file,
+            XMLUtil::replace_rel_attr(&temp_dir, &src_file,
                 &replace_args.regex, &replace_args.replace,
                 &replace_args.out_file.as_deref());
         }
