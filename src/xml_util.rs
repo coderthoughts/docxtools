@@ -79,16 +79,16 @@ impl XMLUtil {
 
         let mut rels_files = vec!();
         for f in files {
-                    let last_slash = f.rfind('/').unwrap();
-                    let mut new_fn = String::new();
-                    new_fn.push_str(&f[..last_slash]);
-                    new_fn.push_str("/_");
-                    new_fn.push_str(rels_extension);
-                    new_fn.push_str(&f[last_slash..]);
-                    new_fn.push('.');
-                    new_fn.push_str(rels_extension);
-                    rels_files.push(new_fn);
-                }
+            let last_slash = f.rfind('/').expect(&f);
+            let mut new_fn = String::new();
+            new_fn.push_str(&f[..last_slash]);
+            new_fn.push_str("/_");
+            new_fn.push_str(rels_extension);
+            new_fn.push_str(&f[last_slash..]);
+            new_fn.push('.');
+            new_fn.push_str(rels_extension);
+            rels_files.push(new_fn);
+        }
 
         rels_files
     }
@@ -101,7 +101,7 @@ impl XMLUtil {
 
         let regex;
         if let Some(regexpat) = pattern {
-            regex = Some(Regex::new(regexpat).unwrap());
+            regex = Some(Regex::new(regexpat).expect(regexpat));
         } else {
             regex = None;
         }
@@ -125,21 +125,21 @@ impl XMLUtil {
         }
 
         if let Some(outfile) = output_file {
-            ZipUtil::write_zip(dir, outfile).unwrap();
+            ZipUtil::write_zip(dir, outfile).expect(outfile);
         }
     }
 
     fn snr_xml_file(mode: &Mode, path: &Path, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
         // detect BOM (Byte Order Mark)
         let bom = Self::get_bom(path);
-        let f = File::open(path).unwrap(); // TODO
+        let f = File::open(path).expect(&path.to_string_lossy());
         let mut r = BufReader::new(f);
 
         if bom != Bom::Null {
             // Remove the BOM bytes from the stream as they will cause the XML parsing to fail
             let len = bom.len();
             let mut bom_prefix = vec![0; len];
-            r.read_exact(&mut bom_prefix).unwrap();
+            r.read_exact(&mut bom_prefix).expect(&path.to_string_lossy());
         }
 
         let dom_res = read_reader(r);
@@ -156,7 +156,7 @@ impl XMLUtil {
                 };
 
                 if changed {
-                    std::fs::write(path, dom.to_string()).unwrap();
+                    std::fs::write(path, dom.to_string()).expect(&path.to_string_lossy());
                 }
             },
             Err(e) => println!("Problem with XML file {}: {}", path.display(), e)
@@ -180,7 +180,7 @@ impl XMLUtil {
                                 println!("{}: {}={}", src_file, attr.node_name(), v);
                                 if let Some(repl) = replace {
                                     let res = r.replace_all(&v, *repl);
-                                    attr.set_value(&res).unwrap();  // TODO
+                                    attr.set_value(&res).expect(src_file);
                                     changed = true;
                                 }
                             }
@@ -230,7 +230,7 @@ impl XMLUtil {
                             println!("{}: {}", src_file, v);
                             if let Some(repl) = replace {
                                 let res = r.replace_all(&v, *repl);
-                                n.set_node_value(&res).unwrap(); // TODO
+                                n.set_node_value(&res).expect(src_file);
                                 changed = true;
                             }
                         }
@@ -247,7 +247,7 @@ impl XMLUtil {
     }
 
     fn get_bom(path: &Path) -> Bom {
-        let mut file = File::open(path).unwrap();
+        let mut file = File::open(path).expect(&path.to_string_lossy());
         Bom::from(&mut file)
     }
 
@@ -258,17 +258,17 @@ impl XMLUtil {
         let path = Path::new(dir).join("[Content_Types].xml");
 
         let bom = Self::get_bom(&path);
-        let f = File::open(path).unwrap(); // TODO
+        let f = File::open(&path).expect(&path.to_string_lossy());
         let mut r = BufReader::new(f);
 
         if bom != Bom::Null {
             // Remove the BOM bytes from the stream as they will cause the XML parsing to fail
             let len = bom.len();
             let mut bom_prefix = vec![0; len];
-            r.read_exact(&mut bom_prefix).unwrap();
+            r.read_exact(&mut bom_prefix).expect(&path.to_string_lossy());
         }
 
-        let dom_res = read_reader(r).unwrap();
+        let dom_res = read_reader(r).expect(&path.to_string_lossy());
         for n in dom_res.child_nodes() {
             if n.local_name() == "Types" {
                 for m in n.child_nodes() {
@@ -278,7 +278,8 @@ impl XMLUtil {
                             let ct = m.get_attribute("ContentType");
 
                             if en.is_some() && ct.is_some() {
-                                defaults.insert(ct.unwrap(), en.unwrap());
+                                defaults.insert(ct.expect(&path.to_string_lossy()),
+                                    en.expect(&path.to_string_lossy()));
                             }
                         },
                         "Override" => {
@@ -286,7 +287,7 @@ impl XMLUtil {
                             let ct = m.get_attribute("ContentType");
 
                             if pn.is_some() && ct.is_some() {
-                                let pns = pn.unwrap();
+                                let pns = pn.expect(&path.to_string_lossy());
                                 let rel_pn;
                                 if pns.starts_with('/') {
                                     rel_pn = &pns[1..];
@@ -294,7 +295,7 @@ impl XMLUtil {
                                     rel_pn = &pns;
                                 }
 
-                                mappings.insert(rel_pn.to_owned(), ct.unwrap());
+                                mappings.insert(rel_pn.to_owned(), ct.expect(&path.to_string_lossy()));
                             }
                         },
                         _ => {}
