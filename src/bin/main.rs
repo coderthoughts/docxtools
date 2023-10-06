@@ -85,7 +85,8 @@ fn real_main(args: Cli) -> i32 {
         temp_dir = fstempdir.path().to_string_lossy().to_string();
     }
 
-    ZipUtil::read_zip(&src_file, &temp_dir).unwrap();
+    ZipUtil::read_zip(&src_file, &temp_dir)
+        .expect(&src_file);
 
     match &args.command {
         Commands::Cat(_) => {
