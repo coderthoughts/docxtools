@@ -11,6 +11,7 @@ walkdir = "2.3"
 xml_dom = "0.2"
 unicode-bom = "2.0"
 clap = { version = "4.3.19", features = ["derive"] }
+quick-xml = "0.31"
 
 [dev-dependencies]
 gag = "1.0"
