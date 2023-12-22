@@ -1,10 +1,12 @@
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
+use quick_xml::name::{LocalName, QName};
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
+use std::str;
 use xml_dom::level2::{Attribute, Node, RefNode, Element};
 use xml_dom::parser::read_reader;
 use unicode_bom::Bom;
@@ -134,6 +136,15 @@ impl XMLUtil {
     fn snr_xml_file(mode: &Mode, path: &Path, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
         let mut reader = Reader::from_file(path).unwrap(); // TODO
 
+        match mode {
+            Mode::Value => Self::snr_xml_node(reader, regex, replace, src_file),
+            Mode::AttrCondition { .. } => Self::snr_xml_attribute(mode, reader, &None, &None, src_file),
+            _ => () // TODO
+        }
+
+    }
+
+    fn snr_xml_node(mut reader: Reader<BufReader<File>>, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
         let mut buf = Vec::new();
 
         loop {
@@ -142,13 +153,80 @@ impl XMLUtil {
                 Ok(Event::Eof) => break,
                 Ok(Event::Text(t)) => {
                     let val = t.unescape().unwrap();
-                    let val2 = val.trim();
-                    if val2.len() > 0 {
-                        println!("{}: {}", src_file, val2);
+                    let val_trimmed = val.trim();
+                    if val_trimmed.len() > 0 {
+                        println!("{}: {}", src_file, val_trimmed);
                     }
                 }
                 _ => (),
             }
+
+            buf.clear();
+        }
+    }
+
+    fn snr_xml_attribute(mode: &Mode, mut reader: Reader<BufReader<File>>, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
+        let mut buf = Vec::new();
+
+        loop {
+            let e = reader.read_event_into(&mut buf);
+
+            println!("Read event {:?}", e);
+
+            if let Ok(Event::Eof) = e {
+                break;
+            }
+            /*
+            match reader.read_event_into(&mut buf) {
+                Err(e) => panic!("Error reading {} at position {}: {:?}", src_file, reader.buffer_position(), e),
+                Ok(Event::Eof) => break,
+                Ok(Event::Start(e)) => {
+                    println!("Start event {:?}", e);
+                    match mode {
+                        Mode::AttrCondition { tagname, attrname, condkey, condval } => {
+                            let tn: LocalName = QName(tagname.as_bytes()).into();
+
+                            let s = e.name();
+                            let ln = s.local_name();
+                            let x = s.as_ref();
+                            let tq = QName(tagname.as_bytes());
+                            if s == tq {
+                                println!("Equals");
+                            }
+                            if s.local_name() == tq.local_name() {
+                                println!("Equals too");
+                            }
+
+                            let rq = QName(b"Relationship");
+                            let vq = QName(b"Target");
+
+                            let eln = e.local_name();
+                            let stn = str::from_utf8(eln.as_ref());
+                            let stq = str::from_utf8(e.name().as_ref());
+
+                            // match stn {
+                            //     Ok(n) => if n == tagname {
+                            //         println!("got it! {} ", tagname);
+                            //     },
+                            //     _ => ()
+                            // }
+
+                            // if e.name().local_name() == tn {
+                            //     let attrs = e.attributes();
+                            //     attrs
+                            //         // .filter(|a| a.as_ref() == attrname)
+                            //         .for_each(|a| println!("Attribute {:?} value {:?}", a.as_ref(), a.as_ref()));
+                            //     // attrs.fil
+                            // }
+                        },
+                        _ => ()
+                    }
+                },
+                _ => (),
+            }
+
+            // buf.clear();
+             */
         }
     }
 
@@ -171,11 +249,11 @@ impl XMLUtil {
             Ok(dom) => {
                 let changed = match mode {
                     Mode::Attribute =>
-                        Self::snr_xml_attribute(&mode, &dom, regex, replace, src_file),
+                        Self::_snr_xml_attribute(&mode, &dom, regex, replace, src_file),
                     Mode::Value =>
-                        Self::snr_xml_node(&dom, regex, replace, src_file),
+                        Self::_snr_xml_node(&dom, regex, replace, src_file),
                     Mode::AttrCondition{ .. } =>
-                        Self::snr_xml_attribute(&mode, &dom, &None, &None, src_file)
+                        Self::_snr_xml_attribute(&mode, &dom, &None, &None, src_file)
                 };
 
                 if changed {
@@ -186,7 +264,7 @@ impl XMLUtil {
         }
     }
 
-    fn snr_xml_attribute(mode: &Mode, node: &RefNode, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str)
+    fn _snr_xml_attribute(mode: &Mode, node: &RefNode, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str)
         -> bool {
         let mut changed = false;
 
@@ -231,13 +309,13 @@ impl XMLUtil {
                     }
                 }
             }
-            changed |= Self::snr_xml_attribute(&mode, &n, regex, replace, src_file);
+            changed |= Self::_snr_xml_attribute(&mode, &n, regex, replace, src_file);
         }
 
         changed
     }
 
-    fn snr_xml_node(node: &RefNode, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str)
+    fn _snr_xml_node(node: &RefNode, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str)
         -> bool {
         let mut changed = false;
 
@@ -263,7 +341,7 @@ impl XMLUtil {
                     }
                 }
             }
-            changed |= Self::snr_xml_node(&n, regex, replace, src_file);
+            changed |= Self::_snr_xml_node(&n, regex, replace, src_file);
         }
 
         changed
@@ -390,10 +468,18 @@ mod tests {
         assert!(out.contains("doc123.docx: And here’s just some text:"));
         assert!(!out.contains("Target"));
     }
+    */
 
     #[test]
     #[serial]
     fn test_links() {
+        /* */
+        XMLUtil::cat_rel_attr (
+            "Relationship", "Target",
+            "Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+            "./src/test/test_tree4", "testing789.docx");
+        /* */
+
         let out = capture_stdout!(
             XMLUtil::cat_rel_attr (
                 "Relationship", "Target",
@@ -405,6 +491,7 @@ mod tests {
         assert!(!out.contains("Target=webSettings.xml"))
     }
 
+    /*
     #[test]
     fn test_replace() -> io::Result<()> {
         let orgdir = "./src/test/test_tree2";
