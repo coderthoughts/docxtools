@@ -169,55 +169,32 @@ impl XMLUtil {
         let mut buf = Vec::new();
 
         loop {
-            let e = reader.read_event_into(&mut buf);
-
-            println!("Read event {:?}", e);
-
-            if let Ok(Event::Eof) = e {
-                break;
-            }
-            /*
             match reader.read_event_into(&mut buf) {
                 Err(e) => panic!("Error reading {} at position {}: {:?}", src_file, reader.buffer_position(), e),
                 Ok(Event::Eof) => break,
+                Ok(Event::Empty(e)) |
                 Ok(Event::Start(e)) => {
-                    println!("Start event {:?}", e);
                     match mode {
                         Mode::AttrCondition { tagname, attrname, condkey, condval } => {
-                            let tn: LocalName = QName(tagname.as_bytes()).into();
-
                             let s = e.name();
-                            let ln = s.local_name();
-                            let x = s.as_ref();
                             let tq = QName(tagname.as_bytes());
-                            if s == tq {
-                                println!("Equals");
-                            }
                             if s.local_name() == tq.local_name() {
-                                println!("Equals too");
+                                let attrs = e.attributes();
+
+                                let use_node = attrs.filter(|a| a.is_ok())
+                                    .map(|a| a.unwrap())
+                                    .filter(|a| a.key.local_name() == QName(condkey.as_bytes()).local_name())
+                                    .filter(|a| a.value == condval.as_bytes())
+                                    .count();
+                                if use_node > 0 {
+                                    let attr = e.try_get_attribute(attrname);
+                                    if let Ok(ao) = attr {
+                                        if let Some(av) = ao {
+                                            println!("{}: {}", src_file, str::from_utf8(&av.value).unwrap_or_default());
+                                        }     
+                                    }
+                                }
                             }
-
-                            let rq = QName(b"Relationship");
-                            let vq = QName(b"Target");
-
-                            let eln = e.local_name();
-                            let stn = str::from_utf8(eln.as_ref());
-                            let stq = str::from_utf8(e.name().as_ref());
-
-                            // match stn {
-                            //     Ok(n) => if n == tagname {
-                            //         println!("got it! {} ", tagname);
-                            //     },
-                            //     _ => ()
-                            // }
-
-                            // if e.name().local_name() == tn {
-                            //     let attrs = e.attributes();
-                            //     attrs
-                            //         // .filter(|a| a.as_ref() == attrname)
-                            //         .for_each(|a| println!("Attribute {:?} value {:?}", a.as_ref(), a.as_ref()));
-                            //     // attrs.fil
-                            // }
                         },
                         _ => ()
                     }
@@ -225,8 +202,7 @@ impl XMLUtil {
                 _ => (),
             }
 
-            // buf.clear();
-             */
+            buf.clear();
         }
     }
 
@@ -473,13 +449,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_links() {
-        /* */
-        XMLUtil::cat_rel_attr (
-            "Relationship", "Target",
-            "Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
-            "./src/test/test_tree4", "testing789.docx");
-        /* */
-
         let out = capture_stdout!(
             XMLUtil::cat_rel_attr (
                 "Relationship", "Target",
