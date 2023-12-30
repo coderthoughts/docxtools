@@ -1,10 +1,11 @@
-use quick_xml::events::Event;
+use quick_xml::events::{BytesEnd, Event};
 use quick_xml::reader::Reader;
+use quick_xml::writer::Writer;
 use quick_xml::name::{LocalName, QName};
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::{BufReader, Cursor, Read};
 use std::path::Path;
 use std::str;
 use xml_dom::level2::{Attribute, Node, RefNode, Element};
@@ -138,7 +139,9 @@ impl XMLUtil {
 
         match mode {
             Mode::Value => Self::snr_xml_node(reader, regex, replace, src_file),
+            Mode::Attribute => Self::snr_change_attribute(reader, regex, replace, src_file),
             Mode::AttrCondition { .. } => Self::snr_xml_attribute(mode, reader, &None, &None, src_file),
+            
             _ => () // TODO
         }
 
@@ -165,8 +168,31 @@ impl XMLUtil {
         }
     }
 
+    fn snr_change_attribute(mut reader: Reader<BufReader<File>>, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
+        let mut buf = Vec::new();
+
+        let mut writer = Writer::new(Cursor::new(Vec::new()));
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(Event::Start(e)) => {
+                    writer.write_event(Event::Start(e)).unwrap();
+                },
+                Ok(Event::End(e)) => {
+                    writer.write_event(Event::End(e)).unwrap();
+                },
+                Ok(Event::Eof) => break,
+                Ok(e) => writer.write_event(e).unwrap(),
+                Err(e) => panic!("Error {:?}", e),
+            }
+        }
+
+        println!("QQQ Writer: {}", str::from_utf8(&writer.into_inner().into_inner()).unwrap());
+    }
+
     fn snr_xml_attribute(mode: &Mode, mut reader: Reader<BufReader<File>>, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
         let mut buf = Vec::new();
+
+        // let mut writer = Writer::new(Cursor::new(Vec::new()));
 
         loop {
             match reader.read_event_into(&mut buf) {
@@ -196,13 +222,31 @@ impl XMLUtil {
                                 }
                             }
                         },
+                        /*
+                        Mode::Attribute => {
+                            let attrs = e.attributes();
+                            for attr in attrs {
+                                if let Ok(a) = attr {
+                                    println!("XXXX{}: {}={}", src_file, 
+                                        str::from_utf8(&a.key.local_name().as_ref()).unwrap_or_default(), 
+                                        str::from_utf8(&a.value).unwrap_or_default());
+                                }
+                            }
+                            // e.local_name()
+                            // println!("{}: {}={}", src_file, attr.node_name(), v);
+                        },
+                         */
                         _ => ()
                     }
+                    // writer.write_event(Event::Start(e)).unwrap();
+                    // BytesEnd::
+                    // writer.write_event(Event::End(BytesEnd::from(e))).unwrap();
                 },
+                // Ok(e) => writer.write_event(e).unwrap(),
                 _ => (),
             }
 
-            buf.clear();
+            // buf.clear();
         }
     }
 
@@ -491,6 +535,7 @@ mod tests {
 
         Ok(())
     }
+    */
 
     #[test]
     fn test_replace_hyperlink() -> io::Result<()> {
@@ -518,6 +563,7 @@ mod tests {
         Ok(())
     }
 
+    /*
     #[test]
     fn test_replace_both() -> io::Result<()> {
         let orgdir = "./src/test/test_tree3";
@@ -560,6 +606,7 @@ mod tests {
 
         Ok(())
     }
+     */
 
     fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
         fs::create_dir_all(&dst)?;
@@ -574,6 +621,5 @@ mod tests {
         }
         Ok(())
     }
-     */
 }
 
