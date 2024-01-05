@@ -4,13 +4,15 @@ use quick_xml::writer::Writer;
 use quick_xml::name::{LocalName, QName};
 use regex::Regex;
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufReader, Cursor, Read};
+use std::env::temp_dir;
+use std::fs::{File, self};
+use std::io::{BufReader, BufWriter, Cursor, Read};
 use std::path::Path;
 use std::str;
 use xml_dom::level2::{Attribute, Node, RefNode, Element};
 use xml_dom::parser::read_reader;
 use unicode_bom::Bom;
+use uuid::Uuid;
 use walkdir::WalkDir;
 
 use crate::file_util::FileUtil;
@@ -135,11 +137,11 @@ impl XMLUtil {
     }
 
     fn snr_xml_file(mode: &Mode, path: &Path, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
-        let mut reader = Reader::from_file(path).unwrap(); // TODO
+        let reader = Reader::from_file(path).unwrap(); // TODO
 
         match mode {
             Mode::Value => Self::snr_xml_node(reader, regex, replace, src_file),
-            Mode::Attribute => Self::snr_change_attribute(reader, regex, replace, src_file),
+            Mode::Attribute => Self::snr_change_attribute(reader, regex, replace, src_file, path),
             Mode::AttrCondition { .. } => Self::snr_xml_attribute(mode, reader, &None, &None, src_file),
 
             _ => () // TODO
@@ -168,7 +170,7 @@ impl XMLUtil {
         }
     }
 
-    fn snr_change_attribute(mut reader: Reader<BufReader<File>>, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
+    fn snr_change_attribute(mut reader: Reader<BufReader<File>>, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str, output_path: &Path) {
         if regex.is_none() || replace.is_none() {
             return;
         }
@@ -176,17 +178,25 @@ impl XMLUtil {
         let rex = regex.as_ref().unwrap();
         let repl = replace.unwrap();
 
+        let mut temp_res = output_path.parent().unwrap().to_owned();
+        let temp_file = format!("{}.xml", Uuid::new_v4());
+        temp_res.push(temp_file);
+
+        let mut has_changes = false;
         let mut buf = Vec::new();
 
-        let mut writer = Writer::new(Cursor::new(Vec::new()));
+        let tf = File::create(&temp_res).unwrap();
+        let mut writer = Writer::new(BufWriter::new(tf));
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Empty(e)) => {
-                    let update_attributes = Self::update_attributes(e, &rex, repl, src_file);
+                    let (update_attributes, c) = Self::update_attributes(e, &rex, repl, src_file);
+                    has_changes |= c;
                     writer.write_event(Event::Empty(update_attributes)).unwrap();
                 },
                 Ok(Event::Start(e)) => {
-                    let update_attributes = Self::update_attributes(e, &rex, repl, src_file);
+                    let (update_attributes, c) = Self::update_attributes(e, &rex, repl, src_file);
+                    has_changes |= c;
                     writer.write_event(Event::Start(update_attributes)).unwrap();
                 },
                 Ok(Event::End(e)) => {
@@ -198,13 +208,21 @@ impl XMLUtil {
             }
         }
 
-        println!("QQQ Writer: {}", str::from_utf8(&writer.into_inner().into_inner()).unwrap());
-        TODO write to disk!
+        // This writes out the file
+        writer.into_inner().into_inner().unwrap();
+
+        if has_changes {
+            // Replace the original file with the new one.
+            fs::remove_file(output_path).unwrap();
+            fs::rename(temp_res, output_path).unwrap();
+        }
+        // println!("QQQ Writer: {}", str::from_utf8(&writer.into_inner().into_inner()).unwrap());
     }
 
-    fn update_attributes<'a>(bs: BytesStart<'a>, regex: &Regex, replace: &str, src_file: &str) -> BytesStart<'a> {
+    fn update_attributes<'a>(bs: BytesStart<'a>, regex: &Regex, replace: &str, src_file: &str) -> (BytesStart<'a>, bool) {
         let mut es = BytesStart::clone(&bs).clear_attributes().clone();
 
+        let mut changed = false;
         for attr in bs.attributes() {
             if let Ok(a) = attr {
                 let val = str::from_utf8(&a.value);
@@ -213,7 +231,10 @@ impl XMLUtil {
                     let mut rval = v;
                     let rv;
                     if regex.is_match(&v) {
-                        println!("{}: {:?}={}", src_file, a.key, v);
+                        let k = a.key.local_name();
+                        println!("{}: {}={}", src_file, str::from_utf8(k.as_ref()).unwrap(), v);
+                        changed = true;
+
                         rv = regex.replace_all(&v, replace);
                         rval = &rv;
                     }
@@ -224,7 +245,11 @@ impl XMLUtil {
             }
         }
 
-        return es;
+        if changed {
+            return (es, changed);
+        } else {
+            return (bs, changed);
+        }
     }
 
     fn snr_xml_attribute(mode: &Mode, mut reader: Reader<BufReader<File>>, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
