@@ -1,4 +1,4 @@
-use quick_xml::events::{BytesEnd, Event};
+use quick_xml::events::{BytesEnd, Event, BytesStart};
 use quick_xml::reader::Reader;
 use quick_xml::writer::Writer;
 use quick_xml::name::{LocalName, QName};
@@ -174,8 +174,13 @@ impl XMLUtil {
         let mut writer = Writer::new(Cursor::new(Vec::new()));
         loop {
             match reader.read_event_into(&mut buf) {
+                Ok(Event::Empty(e)) => {
+                    let update_attributes = Self::update_attributes(e, regex, replace);
+                    writer.write_event(Event::Empty(update_attributes)).unwrap();
+                },
                 Ok(Event::Start(e)) => {
-                    writer.write_event(Event::Start(e)).unwrap();
+                    let update_attributes = Self::update_attributes(e, regex, replace);
+                    writer.write_event(Event::Start(update_attributes)).unwrap();
                 },
                 Ok(Event::End(e)) => {
                     writer.write_event(Event::End(e)).unwrap();
@@ -187,6 +192,20 @@ impl XMLUtil {
         }
 
         println!("QQQ Writer: {}", str::from_utf8(&writer.into_inner().into_inner()).unwrap());
+    }
+
+    fn update_attributes(bs: BytesStart, regex: &Option<Regex>, replace: &Option<&str>) -> BytesStart {
+        let mut es = BytesStart::clone(&bs).clear_attributes().clone();
+
+        for attr in bs.attributes() {
+            let val = quick_xml::events::attributes::Attribute::decode_and_unescape_value(&self, reader)
+            let xa = quick_xml::events::attributes::Attr::DoubleQ("xx".as_bytes(), "yy".as_bytes());
+            let x = quick_xml::events::attributes::Attribute::from(xa);
+
+            es.push_attribute(x);
+        }
+
+        return es;
     }
 
     fn snr_xml_attribute(mode: &Mode, mut reader: Reader<BufReader<File>>, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
