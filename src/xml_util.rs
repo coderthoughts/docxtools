@@ -141,7 +141,7 @@ impl XMLUtil {
             Mode::Value => Self::snr_xml_node(reader, regex, replace, src_file),
             Mode::Attribute => Self::snr_change_attribute(reader, regex, replace, src_file),
             Mode::AttrCondition { .. } => Self::snr_xml_attribute(mode, reader, &None, &None, src_file),
-            
+
             _ => () // TODO
         }
 
@@ -169,17 +169,24 @@ impl XMLUtil {
     }
 
     fn snr_change_attribute(mut reader: Reader<BufReader<File>>, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
+        if regex.is_none() || replace.is_none() {
+            return;
+        }
+
+        let rex = regex.as_ref().unwrap();
+        let repl = replace.unwrap();
+
         let mut buf = Vec::new();
 
         let mut writer = Writer::new(Cursor::new(Vec::new()));
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Empty(e)) => {
-                    let update_attributes = Self::update_attributes(e, regex, replace);
+                    let update_attributes = Self::update_attributes(e, &rex, repl, src_file);
                     writer.write_event(Event::Empty(update_attributes)).unwrap();
                 },
                 Ok(Event::Start(e)) => {
-                    let update_attributes = Self::update_attributes(e, regex, replace);
+                    let update_attributes = Self::update_attributes(e, &rex, repl, src_file);
                     writer.write_event(Event::Start(update_attributes)).unwrap();
                 },
                 Ok(Event::End(e)) => {
@@ -192,17 +199,29 @@ impl XMLUtil {
         }
 
         println!("QQQ Writer: {}", str::from_utf8(&writer.into_inner().into_inner()).unwrap());
+        TODO write to disk!
     }
 
-    fn update_attributes(bs: BytesStart, regex: &Option<Regex>, replace: &Option<&str>) -> BytesStart {
+    fn update_attributes<'a>(bs: BytesStart<'a>, regex: &Regex, replace: &str, src_file: &str) -> BytesStart<'a> {
         let mut es = BytesStart::clone(&bs).clear_attributes().clone();
 
         for attr in bs.attributes() {
-            let val = quick_xml::events::attributes::Attribute::decode_and_unescape_value(&self, reader)
-            let xa = quick_xml::events::attributes::Attr::DoubleQ("xx".as_bytes(), "yy".as_bytes());
-            let x = quick_xml::events::attributes::Attribute::from(xa);
+            if let Ok(a) = attr {
+                let val = str::from_utf8(&a.value);
 
-            es.push_attribute(x);
+                if let Ok(v) = val {
+                    let mut rval = v;
+                    let rv;
+                    if regex.is_match(&v) {
+                        println!("{}: {:?}={}", src_file, a.key, v);
+                        rv = regex.replace_all(&v, replace);
+                        rval = &rv;
+                    }
+                    let na = quick_xml::events::attributes::Attr::DoubleQ(a.key.as_ref(), rval.as_bytes());
+                    let new_attr = quick_xml::events::attributes::Attribute::from(na);
+                    es.push_attribute(new_attr);
+                }
+            }
         }
 
         return es;
@@ -236,7 +255,7 @@ impl XMLUtil {
                                     if let Ok(ao) = attr {
                                         if let Some(av) = ao {
                                             println!("{}: {}", src_file, str::from_utf8(&av.value).unwrap_or_default());
-                                        }     
+                                        }
                                     }
                                 }
                             }
@@ -246,8 +265,8 @@ impl XMLUtil {
                             let attrs = e.attributes();
                             for attr in attrs {
                                 if let Ok(a) = attr {
-                                    println!("XXXX{}: {}={}", src_file, 
-                                        str::from_utf8(&a.key.local_name().as_ref()).unwrap_or_default(), 
+                                    println!("XXXX{}: {}={}", src_file,
+                                        str::from_utf8(&a.key.local_name().as_ref()).unwrap_or_default(),
                                         str::from_utf8(&a.value).unwrap_or_default());
                                 }
                             }
