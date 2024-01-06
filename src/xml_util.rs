@@ -1,11 +1,15 @@
+use quick_xml::events::{Event, BytesStart};
+use quick_xml::events::attributes::{Attr, Attribute};
+use quick_xml::name::QName;
+use quick_xml::reader::Reader;
+use quick_xml::writer::Writer;
 use regex::Regex;
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufReader, Read};
+use std::fs::{File, self};
+use std::io::{BufReader, BufWriter};
 use std::path::Path;
-use xml_dom::level2::{Attribute, Node, RefNode, Element};
-use xml_dom::parser::read_reader;
-use unicode_bom::Bom;
+use std::str;
+use uuid::Uuid;
 use walkdir::WalkDir;
 
 use crate::file_util::FileUtil;
@@ -43,21 +47,12 @@ impl XMLUtil {
             None, None, None);
     }
 
-    pub fn grep_xml(dir: &str, src_file: &str, pattern: &str) {
-        Self::snr_xml(Mode::Value, dir, src_file, None, Some(pattern), None, None);
+    pub fn grep_xml(_dir: &str, _src_file: &str, _pattern: &str) {
+        panic!("The 'grep' functionality is currently disabled until issue #2 is fixed");
     }
 
-    pub fn replace_xml(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<&str>) {
-        let (_, files) = Self::get_files_with_content_type(dir,
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
-
-        let out_file = match output_file {
-            Some(of) => of,
-            None => src_file
-        };
-
-        let fref = files.iter().map(AsRef::as_ref).collect();
-        Self::snr_xml(Mode::Value, dir, src_file, Some(fref), Some(pattern), Some(replace), Some(out_file));
+    pub fn replace_xml(_dir: &str, _src_file: &str, _pattern: &str, _replace: &str, _output_file: &Option<&str>) {
+        panic!("The 'replace' functionality is currently disabled until issue #2 is fixed");
     }
 
     pub fn replace_rel_attr(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<&str>) {
@@ -106,22 +101,22 @@ impl XMLUtil {
             regex = None;
         }
 
-        for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
-            if entry.file_type().is_file() {
-                let sub_path = FileUtil::get_sub_path(entry.path(), &base_dir);
+        for entry in WalkDir::new(dir).into_iter()
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_type().is_file()) {
+            let sub_path = FileUtil::get_sub_path(entry.path(), &base_dir);
 
-                if let Some(file_list) = &files {
-                    if !file_list.contains(&sub_path.as_str()) {
-                        continue;
-                    }
-                } else {
-                    if !(sub_path.ends_with(".xml")) {
-                        continue;
-                    }
+            if let Some(file_list) = &files {
+                if !file_list.contains(&sub_path.as_str()) {
+                    continue;
                 }
-
-                Self::snr_xml_file(&mode, entry.path(), &regex, &replace, src_file);
+            } else {
+                if !(sub_path.ends_with(".xml")) {
+                    continue;
+                }
             }
+
+            Self::snr_xml_file(&mode, entry.path(), &regex, &replace, src_file);
         }
 
         if let Some(outfile) = output_file {
@@ -130,177 +125,217 @@ impl XMLUtil {
     }
 
     fn snr_xml_file(mode: &Mode, path: &Path, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
-        // detect BOM (Byte Order Mark)
-        let bom = Self::get_bom(path);
-        let f = File::open(path).expect(&path.to_string_lossy());
-        let mut r = BufReader::new(f);
+        let reader = Reader::from_file(path).expect(&path.to_string_lossy());
 
-        if bom != Bom::Null {
-            // Remove the BOM bytes from the stream as they will cause the XML parsing to fail
-            let len = bom.len();
-            let mut bom_prefix = vec![0; len];
-            r.read_exact(&mut bom_prefix).expect(&path.to_string_lossy());
-        }
-
-        let dom_res = read_reader(r);
-
-        match dom_res {
-            Ok(dom) => {
-                let changed = match mode {
-                    Mode::Attribute =>
-                        Self::snr_xml_attribute(&mode, &dom, regex, replace, src_file),
-                    Mode::Value =>
-                        Self::snr_xml_node(&dom, regex, replace, src_file),
-                    Mode::AttrCondition{ .. } =>
-                        Self::snr_xml_attribute(&mode, &dom, &None, &None, src_file)
-                };
-
-                if changed {
-                    std::fs::write(path, dom.to_string()).expect(&path.to_string_lossy());
-                }
-            },
-            Err(e) => println!("Problem with XML file {}: {}", path.display(), e)
+        match mode {
+            Mode::Value => Self::snr_xml_node(reader, src_file),
+            Mode::Attribute => Self::snr_change_attribute(reader, regex, replace, src_file, path),
+            Mode::AttrCondition { .. } => Self::snr_xml_attribute(mode, reader, src_file),
         }
     }
 
-    fn snr_xml_attribute(mode: &Mode, node: &RefNode, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str)
-        -> bool {
-        let mut changed = false;
+    fn snr_xml_node(mut reader: Reader<BufReader<File>>, src_file: &str) {
+        let mut buf = Vec::new();
 
-        for n in node.child_nodes() {
-            for (_, mut attr) in n.attributes() {
-                if let Some(v) = attr.value() {
-                    if v.len() == 0 {
-                        continue;
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Err(e) => panic!("Error reading {} at position {}: {:?}", src_file, reader.buffer_position(), e),
+                Ok(Event::Eof) => break,
+                Ok(Event::Text(t)) => {
+                    let val = t.unescape().expect(src_file);
+                    let val_trimmed = val.trim();
+                    if val_trimmed.len() > 0 {
+                        println!("{}: {}", src_file, val_trimmed);
                     }
+                }
+                _ => (),
+            }
 
-                    match regex {
-                        Some(r) => {
-                            if r.is_match(&v) {
-                                println!("{}: {}={}", src_file, attr.node_name(), v);
-                                if let Some(repl) = replace {
-                                    let res = r.replace_all(&v, *repl);
-                                    attr.set_value(&res).expect(src_file);
-                                    changed = true;
+            // buf.clear(); why is this suggested in the docs?
+        }
+    }
+
+    fn snr_change_attribute(mut reader: Reader<BufReader<File>>, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str, output_path: &Path) {
+        if regex.is_none() || replace.is_none() {
+            return;
+        }
+
+        let rex = regex.as_ref().unwrap();
+        let repl = replace.unwrap();
+
+        let mut temp_res = output_path.parent().unwrap().to_owned();
+        temp_res.push(format!("{}.xml", Uuid::new_v4()));
+
+        let mut has_changes = false;
+        let mut buf = Vec::new();
+
+        let tf = File::create(&temp_res).expect(&temp_res.to_string_lossy());
+        let mut writer = Writer::new(BufWriter::new(tf));
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(Event::Empty(e)) => {
+                    let (update_attributes, c) = Self::update_attributes(e, &rex, repl, src_file);
+                    has_changes |= c;
+                    writer.write_event(Event::Empty(update_attributes)).unwrap();
+                },
+                Ok(Event::Start(e)) => {
+                    let (update_attributes, c) = Self::update_attributes(e, &rex, repl, src_file);
+                    has_changes |= c;
+                    writer.write_event(Event::Start(update_attributes)).unwrap();
+                },
+                Ok(Event::Eof) => break,
+                Ok(e) => writer.write_event(e).unwrap(),
+                Err(e) => panic!("Error {:?}", e),
+            }
+        }
+
+        // This writes out the file
+        writer.into_inner().into_inner().unwrap();
+
+        if has_changes {
+            // Replace the original file with the new one.
+            fs::remove_file(output_path).unwrap();
+            fs::rename(temp_res, output_path).unwrap();
+        } else {
+            // No changes, so just remove the generated file.
+            fs::remove_file(temp_res).unwrap();
+        }
+    }
+
+    fn update_attributes<'a>(bs: BytesStart<'a>, regex: &Regex, replace: &str, src_file: &str) -> (BytesStart<'a>, bool) {
+        let mut es = BytesStart::clone(&bs);
+        es.clear_attributes();
+
+        let mut changed = false;
+        for attr in bs.attributes() {
+            if let Ok(a) = attr {
+                let val = str::from_utf8(&a.value);
+
+                if let Ok(v) = val {
+                    let mut rval = v;
+                    let rv;
+                    if regex.is_match(&v) {
+                        let k = a.key.local_name();
+                        println!("{}: {}={}", src_file, str::from_utf8(k.as_ref()).unwrap(), v);
+                        changed = true;
+
+                        rv = regex.replace_all(&v, replace);
+                        rval = &rv;
+                    }
+                    let na = Attr::DoubleQ(a.key.as_ref(), rval.as_bytes());
+                    let new_attr = Attribute::from(na);
+                    es.push_attribute(new_attr);
+                }
+            }
+        }
+
+        if changed {
+            return (es, changed);
+        } else {
+            return (bs, changed);
+        }
+    }
+
+    fn snr_xml_attribute(mode: &Mode, mut reader: Reader<BufReader<File>>, src_file: &str) {
+        let mut buf = Vec::new();
+
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Err(e) => panic!("Error reading {} at position {}: {:?}", src_file, reader.buffer_position(), e),
+                Ok(Event::Eof) => break,
+                Ok(Event::Empty(e)) |
+                Ok(Event::Start(e)) => {
+                    match mode {
+                        Mode::AttrCondition { tagname, attrname, condkey, condval } => {
+                            let s = e.name();
+                            let tq = QName(tagname.as_bytes());
+                            if s.local_name() == tq.local_name() {
+                                let attrs = e.attributes();
+
+                                let use_node = attrs.filter(|a| a.is_ok())
+                                    .map(|a| a.unwrap())
+                                    .filter(|a| a.key.local_name() == QName(condkey.as_bytes()).local_name())
+                                    .filter(|a| a.value == condval.as_bytes())
+                                    .count();
+                                if use_node > 0 {
+                                    let attr = e.try_get_attribute(attrname);
+                                    if let Ok(ao) = attr {
+                                        if let Some(av) = ao {
+                                            println!("{}: {}", src_file, str::from_utf8(&av.value).unwrap_or_default());
+                                        }
+                                    }
                                 }
                             }
                         },
-                        None => {
-                            match mode {
-                                Mode::Attribute => {
-                                    println!("{}: {}={}", src_file, attr.node_name(), v);
-                                },
-                                Mode::AttrCondition {
-                                    tagname, attrname, condkey, condval
-                                } => {
-                                    if &n.node_name().to_string() == tagname
-                                        && &attr.node_name().to_string() == attrname {
-                                        if let Some(condattr) = n.get_attribute(&condkey) {
-                                            if &condattr == condval {
-                                                println!("{}: {}", src_file, v);
-                                            }
-                                        }
-                                    }
-                                },
-                                _ => {}
-                            }
-                        }
+                        _ => ()
                     }
-                }
+                },
+                _ => (),
             }
-            changed |= Self::snr_xml_attribute(&mode, &n, regex, replace, src_file);
         }
-
-        changed
     }
 
-    fn snr_xml_node(node: &RefNode, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str)
-        -> bool {
-        let mut changed = false;
-
-        for mut n in node.child_nodes() {
-            if let Some(v) = n.node_value() {
-                if v.len() == 0 {
-                    continue;
-                }
-
-                match regex {
-                    Some(r) => {
-                        if r.is_match(&v) {
-                            println!("{}: {}", src_file, v);
-                            if let Some(repl) = replace {
-                                let res = r.replace_all(&v, *repl);
-                                n.set_node_value(&res).expect(src_file);
-                                changed = true;
-                            }
-                        }
-                    },
-                    None => {
-                        println!("{}: {}", src_file, v);
-                    }
-                }
-            }
-            changed |= Self::snr_xml_node(&n, regex, replace, src_file);
-        }
-
-        changed
-    }
-
-    fn get_bom(path: &Path) -> Bom {
-        let mut file = File::open(path).expect(&path.to_string_lossy());
-        Bom::from(&mut file)
-    }
-
-    fn get_content_types(dir: &str) -> (HashMap<String, String>, HashMap<String, String>) {
+    fn get_content_types(dir: &str)  -> (HashMap<String, String>, HashMap<String, String>) {
         let mut defaults = HashMap::new();
         let mut mappings = HashMap::new();
 
-        let path = Path::new(dir).join("[Content_Types].xml");
+        let ct_file = Path::new(dir).join("[Content_Types].xml");
+        let mut reader = Reader::from_file(&ct_file).unwrap();
 
-        let bom = Self::get_bom(&path);
-        let f = File::open(&path).expect(&path.to_string_lossy());
-        let mut r = BufReader::new(f);
+        let mut buf = Vec::new();
+        let mut in_types = false;
 
-        if bom != Bom::Null {
-            // Remove the BOM bytes from the stream as they will cause the XML parsing to fail
-            let len = bom.len();
-            let mut bom_prefix = vec![0; len];
-            r.read_exact(&mut bom_prefix).expect(&path.to_string_lossy());
-        }
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Err(e) => panic!("Error reading {:?} at position {}: {:?}", ct_file, reader.buffer_position(), e),
+                Ok(Event::Eof) => break,
+                Ok(Event::Empty(e)) |
+                Ok(Event::Start(e)) => {
+                    if e.local_name().as_ref() == b"Types" {
+                        in_types = true;
+                        continue;
+                    }
+                    if in_types {
+                        match e.local_name().as_ref() {
+                            b"Default" => {
+                                let en = e.try_get_attribute(b"Extension");
+                                let ct = e.try_get_attribute(b"ContentType");
 
-        let dom_res = read_reader(r).expect(&path.to_string_lossy());
-        for n in dom_res.child_nodes() {
-            if n.local_name() == "Types" {
-                for m in n.child_nodes() {
-                    match m.local_name().as_str() {
-                        "Default" => {
-                            let en = m.get_attribute("Extension");
-                            let ct = m.get_attribute("ContentType");
-
-                            if en.is_some() && ct.is_some() {
-                                defaults.insert(ct.expect(&path.to_string_lossy()),
-                                    en.expect(&path.to_string_lossy()));
-                            }
-                        },
-                        "Override" => {
-                            let pn = m.get_attribute("PartName");
-                            let ct = m.get_attribute("ContentType");
-
-                            if pn.is_some() && ct.is_some() {
-                                let pns = pn.expect(&path.to_string_lossy());
-                                let rel_pn;
-                                if pns.starts_with('/') {
-                                    rel_pn = &pns[1..];
-                                } else {
-                                    rel_pn = &pns;
+                                if let (Ok(e), Ok(c)) = (en, ct) {
+                                    if let (Some(ev), Some(cv)) = (e, c) {
+                                        defaults.insert(str::from_utf8(cv.value.as_ref()).unwrap().to_string(),
+                                            str::from_utf8(ev.value.as_ref()).unwrap().to_string());
+                                    }
                                 }
+                            },
+                            b"Override" => {
+                                let pn = e.try_get_attribute(b"PartName");
+                                let ct = e.try_get_attribute(b"ContentType");
 
-                                mappings.insert(rel_pn.to_owned(), ct.expect(&path.to_string_lossy()));
-                            }
-                        },
-                        _ => {}
+                                if let (Ok(p), Ok(c)) = (pn, ct) {
+                                    if let (Some(pv), Some(cv)) = (p, c) {
+                                        let pn = str::from_utf8(pv.value.as_ref()).unwrap();
+                                        let rel_pn;
+                                        if pn.starts_with('/') {
+                                            rel_pn = &pn[1..];
+                                        } else {
+                                            rel_pn = pn;
+                                        }
+                                        mappings.insert(rel_pn.to_string(),
+                                            str::from_utf8(cv.value.as_ref()).unwrap().to_string());
+                                    }
+                                }
+                            },
+                            _ => {}
+                        }
+                    }
+                },
+                Ok(Event::End(e)) => {
+                    if e.local_name().as_ref() == b"Types" {
+                        in_types = false;
                     }
                 }
+                _ => ()
             }
         }
 
@@ -312,7 +347,7 @@ impl XMLUtil {
 
         let mut result = vec!();
         for (file, ct) in &mappings {
-            if ct == content_type {
+            if *ct == content_type {
                 result.push(file.to_owned());
             }
         }
@@ -356,6 +391,7 @@ mod tests {
         assert!(out.contains("my-file.docx: Here’s a hyperlink:"));
     }
 
+    /*
     #[test]
     #[serial] // This test has to run serially to avoid multiple tests to capture stdout
     fn test_grep() {
@@ -366,6 +402,7 @@ mod tests {
         assert!(out.contains("doc123.docx: And here’s just some text:"));
         assert!(!out.contains("Target"));
     }
+    */
 
     #[test]
     #[serial]
@@ -381,6 +418,7 @@ mod tests {
         assert!(!out.contains("Target=webSettings.xml"))
     }
 
+    /*
     #[test]
     fn test_replace() -> io::Result<()> {
         let orgdir = "./src/test/test_tree2";
@@ -411,6 +449,7 @@ mod tests {
 
         Ok(())
     }
+    */
 
     #[test]
     fn test_replace_hyperlink() -> io::Result<()> {
@@ -438,6 +477,7 @@ mod tests {
         Ok(())
     }
 
+    /*
     #[test]
     fn test_replace_both() -> io::Result<()> {
         let orgdir = "./src/test/test_tree3";
@@ -480,6 +520,7 @@ mod tests {
 
         Ok(())
     }
+     */
 
     fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
         fs::create_dir_all(&dst)?;

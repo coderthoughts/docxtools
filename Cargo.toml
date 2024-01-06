@@ -8,9 +8,10 @@ regex = "1.9"
 tempfile = "3.8"
 zip = "0.6"
 walkdir = "2.3"
-xml_dom = "0.2"
 unicode-bom = "2.0"
 clap = { version = "4.3.19", features = ["derive"] }
+quick-xml = "0.31"
+uuid = { version = "1.6", features = ["v4"] }
 
 [dev-dependencies]
 gag = "1.0"
