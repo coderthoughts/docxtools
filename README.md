@@ -11,13 +11,14 @@ useful for batch operations.
 General usage:
 
 ```
-$ ./docxtools
+$ ./docxtools --help
 Usage: docxtools [OPTIONS] <IN_FILE> <COMMAND>
 
 Commands:
   cat            List the text from the document to the console
-  _grep          Search the text in the document like 'grep'
-  _replace       Search and replace in document text and tables
+  links          List the links in the document to the console
+  grep           Search the text in the document
+  replace        Search and replace in document text and tables
   replace-links  Search and replace hyperlinks in the document
   help           Print this message or the help of the given subcommand(s)
 
@@ -29,8 +30,6 @@ Options:
   -h, --help                 Print help
   -V, --version              Print version
 ```
-
-Note that `_grep` and `_replace` are marked with an underscore until https://github.com/coderthoughts/docxtools/issues/2 is fixed.
 
 ## Example usage:
 
@@ -48,10 +47,10 @@ docs/test.docx: A test document written in Microsoft Word.
 
 ### Search a directory of docx files for a specific text
 
-The `_grep` subcommand supports regex syntax to find text.
+The `grep` subcommand supports regex syntax to find text.
 
 ```
-$ find docs/folder -name "*.docx" -exec docxtools {} _grep '[tT]ext' \;
+$ find docs/folder -name "*.docx" -exec docxtools {} grep '[tT]ext' \;
 docs/folder/sample1.docx: text
 docs/folder/sample1.docx: Text
 docs/folder/sample2.docx: This is a different file that also contains some textual content.
@@ -62,10 +61,8 @@ docs/folder/sample2.docx: This is a different file that also contains some textu
 Change the word 'Test' or 'test' into zzzz and write the modifications to a new file `test_mod1.docx`:
 
 ```
-$ docxtools docs/test.docx _replace '[Tt]est' zzzz docs/test_mod1.docx
+$ docxtools docs/test.docx replace '[Tt]est' zzzz docs/test_mod1.docx
 ```
-
-Note: until https://github.com/coderthoughts/docxtools/issues/2 is fixed, please double check that the result for the `_replace` operation is as expected (only applies to `_replace`, not to `replace-links`).
 
 ### Replace all occurrences of a hyperlink with another
 
