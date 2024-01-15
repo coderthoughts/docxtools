@@ -7,7 +7,7 @@ use regex::Regex;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::{File, self};
 use std::io::{BufReader, BufWriter};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str;
 use uuid::Uuid;
 use walkdir::WalkDir;
@@ -20,18 +20,27 @@ const LINE_ENDING: &'static str = "\r\n";
 #[cfg(not(windows))]
 const LINE_ENDING: &'static str = "\n";
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 enum Mode {
-    AttrCondition {
-        tagname: String,
-        attrname: String,
-        condkey: String,
-        condval: String,
+    // Output the value of a certain attribute
+    CatAttrCondition {
+        tagname: String, // The tag name the attribute should be on
+        attrname: String, // The name of the attribute
+        condkey: String, // Another attribute that should be there
+        condval: String, // The value this other attribute should have
     },
-    Attribute,
     Cat,
-    Grep,
-    Replace
+    Grep {
+        regex: Regex
+    },
+    Replace {
+        regex: Regex,
+        replacement: String
+    },
+    ReplaceAttribute  {
+        regex: Regex,
+        replacement: String
+    },
 }
 
 pub struct XMLUtil {
@@ -43,27 +52,27 @@ impl XMLUtil {
     /// Send the text content of the docx structure to stdout. `dir` is the directory containing
     /// the unzipped docx file and `src_file` is the original name of the docx file.
     pub fn cat(dir: &str, src_file: &str) {
-        Self::snr_xml(Mode::Cat, dir, src_file, None, None, None, None);
+        Self::snr_xml(Mode::Cat, dir, src_file, None, None);
     }
 
     pub fn cat_rel_attr(el_name: &str, attr_name: &str, cond_key: &str, cond_val: &str,
             dir: &str, src_file: &str) {
         let fref = Self::get_rel_files(dir);
 
-        let mode = Mode::AttrCondition {
+        let mode = Mode::CatAttrCondition {
                 tagname: el_name.into(), attrname: attr_name.into(),
                 condkey: cond_key.into(), condval: cond_val.into()
             };
         Self::snr_xml(mode, dir, src_file, Some(fref.iter().map(AsRef::as_ref).collect()),
-            None, None, None);
+            None);
     }
 
     /// Search for regex `pattern` in the text of the docx structure and send matches to stdout.
     /// `dir` is the directory containing
     /// the unzipped docx file and `src_file` is the original name of the docx file.
     pub fn grep_xml(dir: &str, src_file: &str, pattern: &str) {
-        // TODO put the pattern in the 'Mode' enum.
-        Self::snr_xml(Mode::Grep, dir, src_file, None, Some(pattern), None, None);
+        let mg = Mode::Grep { regex: Regex::new(pattern).expect(pattern) };
+        Self::snr_xml(mg, dir, src_file, None, None);
     }
 
     /// Search for regex `pattern` in the text of the docx structure and replace all occurrences with `replacement`.
@@ -82,7 +91,11 @@ impl XMLUtil {
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
         let fref = files.iter().map(AsRef::as_ref).collect();
 
-        Self::snr_xml(Mode::Replace, dir, src_file, Some(fref), Some(pattern), Some(replacement), Some(out_file))
+        let mr = Mode::Replace {
+            regex: Regex::new(pattern).unwrap(),
+            replacement: replacement.to_owned()
+        };
+        Self::snr_xml(mr, dir, src_file, Some(fref), Some(out_file))
     }
 
     pub fn replace_rel_attr(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<&str>) {
@@ -93,8 +106,12 @@ impl XMLUtil {
             None => src_file
         };
 
-        Self::snr_xml(Mode::Attribute, dir, src_file, Some(fref.iter().map(AsRef::as_ref).collect()),
-            Some(pattern), Some(replace), Some(out_file));
+        let ma = Mode::ReplaceAttribute {
+            regex: Regex::new(pattern).unwrap(),
+            replacement: replace.to_owned()
+        };
+        Self::snr_xml(ma, dir, src_file, Some(fref.iter().map(AsRef::as_ref).collect()),
+            Some(out_file));
     }
 
     fn get_rel_files(dir: &str) -> Vec<String> {
@@ -124,17 +141,10 @@ impl XMLUtil {
     /// Optionally specify `files` as the list of files to match. If not specified, all files ending with `.xml` are matched.
     /// `pattern` and `replacement` are used to search/replace operations.
     /// `output_file` optionally specifies a different output file for replacement operations.
-    fn snr_xml(mode: Mode, dir: &str, src_file: &str, files: Option<Vec<&str>>, pattern: Option<&str>, replacement: Option<&str>, output_file: Option<&str>) {
+    fn snr_xml(mode: Mode, dir: &str, src_file: &str, files: Option<Vec<&str>>, output_file: Option<&str>) {
         let mut base_dir = dir.to_owned();
         if !dir.ends_with("/") {
             base_dir.push('/');
-        }
-
-        let regex;
-        if let Some(regexpat) = pattern {
-            regex = Some(Regex::new(regexpat).expect(regexpat));
-        } else {
-            regex = None;
         }
 
         for entry in WalkDir::new(dir).into_iter()
@@ -152,7 +162,7 @@ impl XMLUtil {
                 }
             }
 
-            Self::snr_xml_file(&mode, entry.path(), &regex, &replacement, src_file);
+            Self::snr_xml_file(&mode, entry.path(), src_file);
         }
 
         if let Some(outfile) = output_file {
@@ -160,13 +170,18 @@ impl XMLUtil {
         }
     }
 
-    fn snr_xml_file(mode: &Mode, path: &Path, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str) {
+    fn snr_xml_file(mode: &Mode, path: &Path, src_file: &str) {
         match mode {
-            Mode::Cat => Self::cat_text(path, src_file),
-            Mode::Attribute => Self::snr_change_attribute(path, regex, replace, src_file, path),
-            Mode::AttrCondition { .. } => Self::snr_xml_attribute(mode, path, src_file),
-            Mode::Grep => Self::grep_text(path, src_file, regex),
-            Mode::Replace => Self::replace_text(path, src_file, regex, replace.unwrap())
+            Mode::Cat =>
+                Self::cat_text(path, src_file),
+            Mode::ReplaceAttribute { regex, replacement } =>
+                Self::snr_change_attribute(path, regex, replacement, src_file, path),
+            Mode::CatAttrCondition { .. } =>
+                Self::cat_xml_attribute(mode, path, src_file),
+            Mode::Grep { regex } =>
+                Self::grep_text(path, src_file, regex),
+            Mode::Replace { regex, replacement } =>
+                Self::replace_text(path, src_file, regex, replacement)
         }
     }
 
@@ -224,6 +239,13 @@ impl XMLUtil {
         contains
     }
 
+    fn create_temp_file(dir: &Path) -> PathBuf {
+        let mut temp_res = dir.to_owned();
+        temp_res.push(format!("{}.xml", Uuid::new_v4()));
+
+        temp_res
+    }
+
     /// Read the contents of `xml_file` which would typically be a `word/document.xml` file and collect
     /// all paragraphs of text in the result as a `Vec<String>`.
     ///
@@ -245,11 +267,8 @@ impl XMLUtil {
             -> (Vec<String>, BTreeMap<usize, (usize, usize)>) {
         let mut reader = Self::get_reader(xml_file);
 
-        // TODO Move create temp file writer to share function
-        let mut temp_res = xml_file.parent().unwrap().to_owned();
-        temp_res.push(format!("{}.xml", Uuid::new_v4()));
-        let temp_file = &temp_res.to_string_lossy();
-        let tf = File::create(&temp_res).expect(temp_file);
+        let temp_file = Self::create_temp_file(xml_file.parent().unwrap());
+        let tf = File::create(&temp_file).unwrap();
         let mut writer = Writer::new(BufWriter::new(tf));
 
         let mut paras = Vec::new();
@@ -274,7 +293,7 @@ impl XMLUtil {
                     if Self::match_tag(&e.name(), &nslist, "br") {
                         cur_line.push_str(LINE_ENDING);
                     }
-                    writer.write_event(Event::Empty(e)).expect(temp_file);
+                    writer.write_event(Event::Empty(e)).expect(&temp_file.to_string_lossy());
                 },
                 Ok(Event::Start(e)) => {
                     if first_element {
@@ -282,14 +301,14 @@ impl XMLUtil {
                         Self::read_namespaces(&e, &mut nslist);
                     }
 
-                    if Self::match_tag(&e.name(), &nslist, "p") { // TODO Maybe store para_qnames eagerly
+                    if Self::match_tag(&e.name(), &nslist, "p") {
                         inside_paragraph = true;
                     } else if inside_paragraph && Self::match_tag(&e.name(), &nslist, "t") {
                         inside_text = true;
                     } else if inside_paragraph && Self::match_tag(&e.name(), &nslist, "br") {
                         cur_line.push_str(LINE_ENDING);
                     }
-                    writer.write_event(Event::Start(e)).expect(temp_file);
+                    writer.write_event(Event::Start(e)).expect(&temp_file.to_string_lossy());
                 },
                 Ok(Event::End(e)) => {
                     if Self::match_tag(&e.name(), &nslist, "p") {
@@ -301,7 +320,7 @@ impl XMLUtil {
                     } else if inside_paragraph && Self::match_tag(&e.name(), &nslist, "t") {
                         inside_text = false;
                     }
-                    writer.write_event(Event::End(e)).expect(&temp_file);
+                    writer.write_event(Event::End(e)).expect(&temp_file.to_string_lossy());
                 },
                 Ok(Event::Text(t)) => {
                     let mut ct = t;
@@ -322,9 +341,9 @@ impl XMLUtil {
                             cur_line.push_str(val.as_ref());
                         }
                     }
-                    writer.write_event(Event::Text(ct)).expect(&temp_file);
+                    writer.write_event(Event::Text(ct)).expect(&temp_file.to_string_lossy());
                 },
-                Ok(e) => writer.write_event(e).expect(temp_file)
+                Ok(e) => writer.write_event(e).expect(&temp_file.to_string_lossy())
             }
         }
 
@@ -336,9 +355,9 @@ impl XMLUtil {
         if !replacements.is_empty() {
             // Original file should be replaced
             fs::remove_file(xml_file).unwrap();
-            fs::rename(temp_res, xml_file).unwrap();
+            fs::rename(temp_file, xml_file).unwrap();
         } else {
-            fs::remove_file(temp_res).unwrap();
+            fs::remove_file(temp_file).unwrap();
         }
 
         (paras, coords)
@@ -352,17 +371,13 @@ impl XMLUtil {
         }
     }
 
-    fn grep_text(path: &Path, src_file: &str, regex: &Option<Regex>) {
-        if let Some(rex) = regex {
-            let (paras, _) = Self::get_replace_text(path, src_file, HashMap::new());
+    fn grep_text(path: &Path, src_file: &str, regex: &Regex) {
+        let (paras, _) = Self::get_replace_text(path, src_file, HashMap::new());
 
-            for para in paras {
-                if rex.is_match(&para) {
-                    println!("{}: {}", src_file, para);
-                }
+        for para in paras {
+            if regex.is_match(&para) {
+                println!("{}: {}", src_file, para);
             }
-        } else {
-            panic!("Bad regex for grep: {:?}", regex);
         }
     }
 
@@ -450,16 +465,15 @@ impl XMLUtil {
     /// Replacements are mapped to <w:t> tags which are numbered internally.
     /// Once all the replacements have been found, the `get_replace_text` method is called again
     /// but now with the replacements to-be-applied.
-    fn replace_text(path: &Path, src_file: &str, regex: &Option<Regex>, replace: &str) {
+    fn replace_text(path: &Path, src_file: &str, regex: &Regex, replace: &str) {
         let mut replacements: HashMap<usize, (String, Vec<i32>)> = HashMap::new();
 
-        let rex = regex.as_ref().unwrap();
         let (paras, coords) = Self::get_replace_text(path, src_file, HashMap::new());
 
         let mut cur_line: usize = 0;
         for para in paras {
             let line_coords = Self::get_line_coords(cur_line, &coords);
-            for m in rex.find_iter(&para) {
+            for m in regex.find_iter(&para) {
                 let mstart = m.start();
                 let mend = m.end();
 
@@ -506,11 +520,11 @@ impl XMLUtil {
                                 replace the characters
                             last one:
                                 replace the rest
-                        */
+                    */
 
-                        let mut remaining_chars = mend as i32 - mstart as i32;
-                        let mut cur_replacement = replace.to_string();
-                        for i in start_id..end_id + 1 {
+                    let mut remaining_chars = mend as i32 - mstart as i32;
+                    let mut cur_replacement = replace.to_string();
+                    for i in start_id..end_id + 1 {
                         if remaining_chars < 0 { remaining_chars = 0; }
 
                         if let Some(tag) = tags.get(&i) {
@@ -562,32 +576,24 @@ impl XMLUtil {
         }
     }
 
-    fn snr_change_attribute(path: &Path, regex: &Option<Regex>, replace: &Option<&str>, src_file: &str, output_path: &Path) {
-        if regex.is_none() || replace.is_none() {
-            return;
-        }
+    fn snr_change_attribute(path: &Path, regex: &Regex, replace: &str, src_file: &str, output_path: &Path) {
         let mut reader = Self::get_reader(path);
-
-        let rex = regex.as_ref().unwrap();
-        let repl = replace.unwrap();
-
-        let mut temp_res = output_path.parent().unwrap().to_owned();
-        temp_res.push(format!("{}.xml", Uuid::new_v4()));
 
         let mut has_changes = false;
         let mut buf = Vec::new();
 
-        let tf = File::create(&temp_res).expect(&temp_res.to_string_lossy());
+        let temp_file = Self::create_temp_file(output_path.parent().unwrap());
+        let tf = File::create(&temp_file).unwrap();
         let mut writer = Writer::new(BufWriter::new(tf));
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Empty(e)) => {
-                    let (update_attributes, c) = Self::update_attributes(e, &rex, repl, src_file);
+                    let (update_attributes, c) = Self::update_attributes(e, &regex, replace, src_file);
                     has_changes |= c;
                     writer.write_event(Event::Empty(update_attributes)).unwrap();
                 },
                 Ok(Event::Start(e)) => {
-                    let (update_attributes, c) = Self::update_attributes(e, &rex, repl, src_file);
+                    let (update_attributes, c) = Self::update_attributes(e, &regex, replace, src_file);
                     has_changes |= c;
                     writer.write_event(Event::Start(update_attributes)).unwrap();
                 },
@@ -603,10 +609,10 @@ impl XMLUtil {
         if has_changes {
             // Replace the original file with the new one.
             fs::remove_file(output_path).unwrap();
-            fs::rename(temp_res, output_path).unwrap();
+            fs::rename(temp_file, output_path).unwrap();
         } else {
             // No changes, so just remove the generated file.
-            fs::remove_file(temp_res).unwrap();
+            fs::remove_file(temp_file).unwrap();
         }
     }
 
@@ -645,7 +651,7 @@ impl XMLUtil {
         }
     }
 
-    fn snr_xml_attribute(mode: &Mode, path: &Path, src_file: &str) {
+    fn cat_xml_attribute(mode: &Mode, path: &Path, src_file: &str) {
         let mut reader = Self::get_reader(path);
         let mut buf = Vec::new();
 
@@ -655,29 +661,26 @@ impl XMLUtil {
                 Ok(Event::Eof) => break,
                 Ok(Event::Empty(e)) |
                 Ok(Event::Start(e)) => {
-                    match mode {
-                        Mode::AttrCondition { tagname, attrname, condkey, condval } => {
-                            let s = e.name();
-                            let tq = QName(tagname.as_bytes());
-                            if s.local_name() == tq.local_name() {
-                                let attrs = e.attributes();
+                    if let Mode::CatAttrCondition { tagname, attrname, condkey, condval } = mode {
+                        let s = e.name();
+                        let tq = QName(tagname.as_bytes());
+                        if s.local_name() == tq.local_name() {
+                            let attrs = e.attributes();
 
-                                let use_node = attrs.filter(|a| a.is_ok())
-                                    .map(|a| a.unwrap())
-                                    .filter(|a| a.key.local_name() == QName(condkey.as_bytes()).local_name())
-                                    .filter(|a| a.value == condval.as_bytes())
-                                    .count();
-                                if use_node > 0 {
-                                    let attr = e.try_get_attribute(attrname);
-                                    if let Ok(ao) = attr {
-                                        if let Some(av) = ao {
-                                            println!("{}: {}", src_file, str::from_utf8(&av.value).unwrap_or_default());
-                                        }
+                            let use_node = attrs.filter(|a| a.is_ok())
+                                .map(|a| a.unwrap())
+                                .filter(|a| a.key.local_name() == QName(condkey.as_bytes()).local_name())
+                                .filter(|a| a.value == condval.as_bytes())
+                                .count();
+                            if use_node > 0 {
+                                let attr = e.try_get_attribute(attrname);
+                                if let Ok(ao) = attr {
+                                    if let Some(av) = ao {
+                                        println!("{}: {}", src_file, str::from_utf8(&av.value).unwrap_or_default());
                                     }
                                 }
                             }
-                        },
-                        _ => ()
+                        }
                     }
                 },
                 _ => (),
@@ -736,7 +739,7 @@ impl XMLUtil {
                                     }
                                 }
                             },
-                            _ => {}
+                            _ => ()
                         }
                     }
                 },
