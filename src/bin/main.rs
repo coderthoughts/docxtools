@@ -28,12 +28,10 @@ enum Commands {
     /// List the links in the document to the console
     Links(LinksArgs),
 
-    /// Search the text in the document like 'grep'
-    #[command(name = "_grep")]
+    /// Search the text in the document
     Grep(GrepArgs),
 
     /// Search and replace in document text and tables
-    #[command(name = "_replace")]
     Replace(ReplaceArgs),
 
     /// Search and replace hyperlinks in the document

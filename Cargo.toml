@@ -1,6 +1,6 @@
 [package]
 name = "docxtools"
-version = "0.6.0"
+version = "0.6.1-SNAPSHOT"
 edition = "2021"
 
 [dependencies]
