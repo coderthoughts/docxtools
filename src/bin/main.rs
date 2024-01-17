@@ -35,7 +35,10 @@ enum Commands {
     Replace(ReplaceArgs),
 
     /// Search and replace hyperlinks in the document
-    ReplaceLinks(ReplaceArgs)
+    ReplaceLinks(ReplaceArgs),
+
+    /// Change styles inside the document
+    StyleChange(StyleChangeArgs)
 }
 
 #[derive(Args)]
@@ -58,6 +61,18 @@ struct ReplaceArgs {
     regex: String,
 
     /// The replacement text
+    replace: String,
+
+    /// The output file to write to. If ommitted writing is done to the input file.
+    out_file: Option<String>
+}
+
+#[derive(Args)]
+struct StyleChangeArgs {
+    /// The style to look for e.g. 'Heading1'
+    search: String,
+
+    /// The style to replace it with
     replace: String,
 
     /// The output file to write to. If ommitted writing is done to the input file.
@@ -92,9 +107,9 @@ fn real_main(args: Cli) -> i32 {
         },
         Commands::Links(_) => {
             XMLUtil::cat_rel_attr (
-                    "Relationship", "Target",
-                    "Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
-                    &temp_dir, &src_file);
+                "Relationship", "Target",
+                "Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                &temp_dir, &src_file);
         }
         Commands::Grep(grep_args) => {
             XMLUtil::grep_xml(&temp_dir, &src_file, &grep_args.regex)
@@ -108,6 +123,11 @@ fn real_main(args: Cli) -> i32 {
             XMLUtil::replace_rel_attr(&temp_dir, &src_file,
                 &replace_args.regex, &replace_args.replace,
                 &replace_args.out_file.as_deref());
+        },
+        Commands::StyleChange(args) => {
+            XMLUtil::change_style(&temp_dir, &src_file,
+                &args.search, &args.replace,
+                &args.out_file.as_deref());
         }
     }
 
