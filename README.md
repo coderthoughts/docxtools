@@ -12,6 +12,8 @@ General usage:
 
 ```
 $ ./docxtools --help
+A command-line tool to work with docx files, for example to make bulk-changes in them without the need to open a word processor.
+
 Usage: docxtools [OPTIONS] <IN_FILE> <COMMAND>
 
 Commands:
@@ -20,6 +22,7 @@ Commands:
   grep           Search the text in the document
   replace        Search and replace in document text and tables
   replace-links  Search and replace hyperlinks in the document
+  style-change   Change styles inside the document
   help           Print this message or the help of the given subcommand(s)
 
 Arguments:
@@ -74,11 +77,20 @@ $ docxtools docs/links.docx replace-links https://main--test--hlxsites.hlx.page 
 ```
 
 It's also possible to use capture groups in the regular expressions and replacements. For example let's say you want
-to replace all links of either `http:` or `https:` from `www.example.com` to `http(s)://www.foo.bar/` but not any other 
+to replace all links of either `http:` or `https:` from `www.example.com` to `http(s)://www.foo.bar/` but not any other
 URLs and you want to keep the protocol intact.
 
 For this you can use the usual Regular Expression capturing groups (brackets) and references to these with the `$<group#>` syntax:
 
 ```
 find docs -name "*.docx" -exec ./docxtools {} replace-links '(http[s]?)://www.example.com/' '$1://www.foo.bar/' \;
+```
+
+### Change all occurrences of Heading 2 to Heading 1
+
+Replace all occurrences of a certain style with a different one, for example, to replace all 'Heading 2' occurrences
+in a document execute the following `style-change` command:
+
+```
+$ docxtools mydoc.docx style-change 'Heading 2' 'Heading 1'
 ```
