@@ -2,6 +2,12 @@
 name = "docxtools"
 version = "0.7.1-SNAPSHOT"
 edition = "2021"
+authors = ["David Bosschaert <david.bosschaert@gmail.com>"]
+license = "Apache-2.0"
+description = "A command-line tool to work with docx files, for example to make bulk-changes in them without the need to open a word processor."
+readme = "README.md"
+keywords = ["cli", "docx"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 regex = "1.9"
@@ -12,6 +18,7 @@ unicode-bom = "2.0"
 clap = { version = "4.3.19", features = ["derive"] }
 quick-xml = "0.31"
 uuid = { version = "1.6", features = ["v4"] }
+unicase = "2.7"
 
 [dev-dependencies]
 gag = "1.0"
