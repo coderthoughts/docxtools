@@ -69,10 +69,10 @@ struct ReplaceArgs {
 
 #[derive(Args)]
 struct StyleChangeArgs {
-    /// The style to look for e.g. 'Heading1'
+    /// The style to look for e.g. 'Heading 1'
     search: String,
 
-    /// The style to replace it with
+    /// The style to replace it with, e.g. 'Heading 2'
     replace: String,
 
     /// The output file to write to. If ommitted writing is done to the input file.
