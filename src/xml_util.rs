@@ -68,38 +68,28 @@ impl XMLUtil {
                 tagname: el_name.into(), attrname: attr_name.into(),
                 condkey: cond_key.into(), condval: cond_val.into()
             };
-        Self::snr_xml(mode, dir, src_file, Some(fref.iter().map(AsRef::as_ref).collect()),
-            None);
+        Self::snr_xml(mode, dir, src_file, Some(fref),None);
     }
 
     pub fn change_style(dir: &str, src_file: &str, style: &str, replacement: &str, output_file: &Option<&str>) {
-        // TODO unify all write ops around this
-        let out_file = match output_file {
-            Some(of) => of,
-            None => src_file
-        };
+        Self::invoke_with_files_and_output(dir, src_file, output_file, |files, out_file| {
+            let styles = Self::get_all_styles(dir, src_file);
 
-        // TODO unify with replace
-        let (_, files) = Self::get_files_with_content_type(dir,
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
-        let fref = files.iter().map(AsRef::as_ref).collect();
-
-        let styles = Self::get_all_styles(dir, src_file);
-
-        let src = styles.get(&UniCase::new(style.to_string()));
-        let dest = styles.get(&UniCase::new(replacement.to_string()));
-
-        if let (Some(src_id), Some(dest_id)) = (src, dest) {
-            let mode = Mode::StyleChange {
-                style: src_id.clone(), replacement: dest_id.clone()
-            };
-            Self::snr_xml(mode, dir, src_file, Some(fref), Some(out_file));
-        } else {
-            let mut style_names = Vec::from_iter(styles.keys());
-            style_names.sort();
-
-            panic!("Not all styles were found. Known styles (case insensitive): {:?}", style_names);
-        }
+            let src = styles.get(&UniCase::new(style.to_string()));
+            let dest = styles.get(&UniCase::new(replacement.to_string()));
+    
+            if let (Some(src_id), Some(dest_id)) = (src, dest) {
+                let mode = Mode::StyleChange {
+                    style: src_id.clone(), replacement: dest_id.clone()
+                };
+                Self::snr_xml(mode, dir, src_file, files, out_file);
+            } else {
+                let mut style_names = Vec::from_iter(styles.keys());
+                style_names.sort();
+    
+                panic!("Not all styles were found. Known styles (case insensitive): {:?}", style_names);
+            }
+        });
     }
 
     /// Search for regex `pattern` in the text of the docx structure and send matches to stdout.
@@ -117,20 +107,13 @@ impl XMLUtil {
     /// `output_file` can be a .docx filename. If specified the result will be zipped and written to produce this
     /// new .docx file. Otherwise the result is zipped and written to `src_file`.
     pub fn replace_xml(dir: &str, src_file: &str, pattern: &str, replacement: &str, output_file: &Option<&str>) {
-        let out_file = match output_file {
-            Some(of) => of,
-            None => src_file
-        };
-
-        let (_, files) = Self::get_files_with_content_type(dir,
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
-        let fref = files.iter().map(AsRef::as_ref).collect();
-
-        let mr = Mode::Replace {
-            regex: Regex::new(pattern).unwrap(),
-            replacement: replacement.to_owned()
-        };
-        Self::snr_xml(mr, dir, src_file, Some(fref), Some(out_file))
+        Self::invoke_with_files_and_output(dir, src_file, output_file, |files, out_file| {
+            let mr = Mode::Replace {
+                regex: Regex::new(pattern).unwrap(),
+                replacement: replacement.to_owned()
+            };
+            Self::snr_xml(mr, dir, src_file, files, out_file)    
+        });
     }
 
     pub fn replace_rel_attr(dir: &str, src_file: &str, pattern: &str, replace: &str, output_file: &Option<&str>) {
@@ -145,8 +128,21 @@ impl XMLUtil {
             regex: Regex::new(pattern).unwrap(),
             replacement: replace.to_owned()
         };
-        Self::snr_xml(ma, dir, src_file, Some(fref.iter().map(AsRef::as_ref).collect()),
-            Some(out_file));
+        Self::snr_xml(ma, dir, src_file, Some(fref), Some(out_file));
+    }
+
+    fn invoke_with_files_and_output<'a, F>(dir: &str, src_file: &'a str, output_file: &Option<&'a str>, op_fn: F)
+        where F: Fn(Option<Vec<String>>, Option<&'a str>) {
+
+        let out_file = match output_file {
+            Some(of) => of,
+            None => src_file
+        };
+    
+        let (_, files) = Self::get_files_with_content_type(dir,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
+
+        op_fn(Some(files), Some(out_file));
     }
 
     fn get_rel_files(dir: &str) -> Vec<String> {
@@ -176,7 +172,7 @@ impl XMLUtil {
     /// Optionally specify `files` as the list of files to match. If not specified, all files ending with `.xml` are matched.
     /// `pattern` and `replacement` are used to search/replace operations.
     /// `output_file` optionally specifies a different output file for replacement operations.
-    fn snr_xml(mode: Mode, dir: &str, src_file: &str, files: Option<Vec<&str>>, output_file: Option<&str>) {
+    fn snr_xml(mode: Mode, dir: &str, src_file: &str, files: Option<Vec<String>>, output_file: Option<&str>) {
         let mut base_dir = dir.to_owned();
         if !dir.ends_with("/") {
             base_dir.push('/');
@@ -188,7 +184,7 @@ impl XMLUtil {
             let sub_path = FileUtil::get_sub_path(entry.path(), &base_dir);
 
             if let Some(file_list) = &files {
-                if !file_list.contains(&sub_path.as_str()) {
+                if !file_list.contains(&sub_path) {
                     continue;
                 }
             } else {
@@ -244,6 +240,22 @@ impl XMLUtil {
                     }
                 }
             }
+        }
+    }
+
+    /// Writes the `writer` to disk which is assumed to write to `temp_file`. If `has_changes` is `true` 
+    /// then replaces the `xml_file` with `temp_file`, otherwise just deletes `temp_file`.
+    fn finish_writing(writer: Writer<BufWriter<File>>, xml_file: &Path, temp_file: &Path, has_changes: bool) {
+        // This writes out the file
+        writer.into_inner().into_inner().unwrap();
+
+        if has_changes {
+            // Replace the original file with the new one.
+            fs::remove_file(xml_file).unwrap();
+            fs::rename(temp_file, xml_file).unwrap();
+        } else {
+            // No changes, so just remove the generated file.
+            fs::remove_file(temp_file).unwrap();
         }
     }
 
@@ -391,16 +403,7 @@ impl XMLUtil {
 
         drop(reader); // Close the file being read
 
-        // This writes out the file
-        writer.into_inner().into_inner().unwrap();
-
-        if !replacements.is_empty() {
-            // Original file should be replaced
-            fs::remove_file(xml_file).unwrap();
-            fs::rename(temp_file, xml_file).unwrap();
-        } else {
-            fs::remove_file(temp_file).unwrap();
-        }
+        Self::finish_writing(writer, xml_file, &temp_file, !replacements.is_empty());
 
         (paras, coords)
     }
@@ -657,18 +660,7 @@ impl XMLUtil {
             }
         }
 
-        // TODO the pattern below here is common, to unify
-        // This writes out the file
-        writer.into_inner().into_inner().unwrap();
-
-        if has_changes {
-            // Replace the original file with the new one.
-            fs::remove_file(xml_file).unwrap();
-            fs::rename(temp_file, xml_file).unwrap();
-        } else {
-            // No changes, so just remove the generated file.
-            fs::remove_file(temp_file).unwrap();
-        }
+        Self::finish_writing(writer, xml_file, &temp_file, has_changes);
     }
 
     fn snr_change_attribute(xml_file: &Path, regex: &Regex, replace: &str, src_file: &str) {
@@ -698,17 +690,7 @@ impl XMLUtil {
             }
         }
 
-        // This writes out the file
-        writer.into_inner().into_inner().unwrap();
-
-        if has_changes {
-            // Replace the original file with the new one.
-            fs::remove_file(xml_file).unwrap();
-            fs::rename(temp_file, xml_file).unwrap();
-        } else {
-            // No changes, so just remove the generated file.
-            fs::remove_file(temp_file).unwrap();
-        }
+        Self::finish_writing(writer, xml_file, &temp_file, has_changes);
     }
 
     fn update_attribute<'a>(bs: BytesStart<'a>, attr_name: &str, search: &str, replace: &str, src_file: &str) -> (BytesStart<'a>, bool) {
