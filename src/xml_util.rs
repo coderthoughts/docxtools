@@ -92,20 +92,6 @@ impl XMLUtil {
         });
     }
 
-    fn invoke_with_files_and_output<'a, F>(dir: &str, src_file: &'a str, output_file: &Option<&'a str>, op_fn: F)
-        where F: Fn(Option<Vec<String>>, Option<&'a str>) {
-
-        let out_file = match output_file {
-            Some(of) => of,
-            None => src_file
-        };
-    
-        let (_, files) = Self::get_files_with_content_type(dir,
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
-
-        op_fn(Some(files), Some(out_file));
-    }
-
     /// Search for regex `pattern` in the text of the docx structure and send matches to stdout.
     /// `dir` is the directory containing
     /// the unzipped docx file and `src_file` is the original name of the docx file.
@@ -142,8 +128,21 @@ impl XMLUtil {
             regex: Regex::new(pattern).unwrap(),
             replacement: replace.to_owned()
         };
-        Self::snr_xml(ma, dir, src_file, Some(fref),
-            Some(out_file));
+        Self::snr_xml(ma, dir, src_file, Some(fref), Some(out_file));
+    }
+
+    fn invoke_with_files_and_output<'a, F>(dir: &str, src_file: &'a str, output_file: &Option<&'a str>, op_fn: F)
+        where F: Fn(Option<Vec<String>>, Option<&'a str>) {
+
+        let out_file = match output_file {
+            Some(of) => of,
+            None => src_file
+        };
+    
+        let (_, files) = Self::get_files_with_content_type(dir,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
+
+        op_fn(Some(files), Some(out_file));
     }
 
     fn get_rel_files(dir: &str) -> Vec<String> {
