@@ -21,6 +21,10 @@ const LINE_ENDING: &'static str = "\r\n";
 #[cfg(not(windows))]
 const LINE_ENDING: &'static str = "\n";
 
+const WORDDOC_MT: &'static str = "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml";
+const RELATION_MT: &'static str = "application/vnd.openxmlformats-package.relationships+xml";
+const WORDDOC_NS: &'static str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
 #[derive(Clone, Debug)]
 enum Mode {
     // Output the value of a certain attribute
@@ -77,7 +81,7 @@ impl XMLUtil {
 
             let src = styles.get(&UniCase::new(style.to_string()));
             let dest = styles.get(&UniCase::new(replacement.to_string()));
-    
+
             if let (Some(src_id), Some(dest_id)) = (src, dest) {
                 let mode = Mode::StyleChange {
                     style: src_id.clone(), replacement: dest_id.clone()
@@ -86,7 +90,7 @@ impl XMLUtil {
             } else {
                 let mut style_names = Vec::from_iter(styles.keys());
                 style_names.sort();
-    
+
                 panic!("Not all styles were found. Known styles (case insensitive): {:?}", style_names);
             }
         });
@@ -112,7 +116,7 @@ impl XMLUtil {
                 regex: Regex::new(pattern).unwrap(),
                 replacement: replacement.to_owned()
             };
-            Self::snr_xml(mr, dir, src_file, files, out_file)    
+            Self::snr_xml(mr, dir, src_file, files, out_file)
         });
     }
 
@@ -138,17 +142,15 @@ impl XMLUtil {
             Some(of) => of,
             None => src_file
         };
-    
-        let (_, files) = Self::get_files_with_content_type(dir,
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
+
+        let (_, files) = Self::get_files_with_content_type(dir, WORDDOC_MT);
 
         op_fn(Some(files), Some(out_file));
     }
 
     fn get_rel_files(dir: &str) -> Vec<String> {
-        let (defaults, files) = Self::get_files_with_content_type(dir,
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
-        let rels_extension = &defaults["application/vnd.openxmlformats-package.relationships+xml"];
+        let (defaults, files) = Self::get_files_with_content_type(dir, WORDDOC_MT);
+        let rels_extension = &defaults[RELATION_MT];
 
         let mut rels_files = vec!();
         for f in files {
@@ -243,7 +245,7 @@ impl XMLUtil {
         }
     }
 
-    /// Writes the `writer` to disk which is assumed to write to `temp_file`. If `has_changes` is `true` 
+    /// Writes the `writer` to disk which is assumed to write to `temp_file`. If `has_changes` is `true`
     /// then replaces the `xml_file` with `temp_file`, otherwise just deletes `temp_file`.
     fn finish_writing(writer: Writer<BufWriter<File>>, xml_file: &Path, temp_file: &Path, has_changes: bool) {
         // This writes out the file
@@ -331,7 +333,7 @@ impl XMLUtil {
 
         let mut buf = Vec::new();
 
-        let mut nslist = vec!["http://schemas.openxmlformats.org/wordprocessingml/2006/main".to_string()];
+        let mut nslist = vec![WORDDOC_NS.to_string()];
 
         let mut first_element = true;
         let mut inside_paragraph = false;
@@ -630,7 +632,7 @@ impl XMLUtil {
 
         let mut has_changes = false;
         let mut buf = Vec::new();
-        let mut nslist = vec!["http://schemas.openxmlformats.org/wordprocessingml/2006/main".to_string()];
+        let mut nslist = vec![WORDDOC_NS.to_string()];
         let mut first_element = true;
         loop {
             match reader.read_event_into(&mut buf) {
@@ -894,7 +896,7 @@ impl XMLUtil {
         let mut reader = Self::get_reader(&styles_path);
 
         let mut buf = Vec::new();
-        let mut nslist = vec!("http://schemas.openxmlformats.org/wordprocessingml/2006/main".to_string());
+        let mut nslist = vec!(WORDDOC_NS.to_string());
         let mut inside_style = String::new();
         let mut first_element = true;
         loop {
