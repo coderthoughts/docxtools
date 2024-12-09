@@ -1,6 +1,6 @@
 [package]
 name = "docxtools"
-version = "0.8.1-SNAPSHOT"
+version = "0.8.2-SNAPSHOT"
 edition = "2021"
 authors = ["David Bosschaert <david.bosschaert@gmail.com>"]
 license = "Apache-2.0"
@@ -12,7 +12,7 @@ categories = ["command-line-utilities"]
 [dependencies]
 regex = "1.9"
 tempfile = "3.8"
-zip = "0.6"
+zip = "2.2.1"
 walkdir = "2.3"
 unicode-bom = "2.0"
 clap = { version = "4.3.19", features = ["derive"] }
