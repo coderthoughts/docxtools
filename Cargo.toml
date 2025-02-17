@@ -1,6 +1,6 @@
 [package]
 name = "docxtools"
-version = "0.9.0"
+version = "0.9.1-SNAPSHOT"
 edition = "2021"
 authors = ["David Bosschaert <david.bosschaert@gmail.com>"]
 license = "Apache-2.0"
