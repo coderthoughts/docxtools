@@ -10,7 +10,7 @@ pub struct ZipUtil {
 }
 
 impl ZipUtil {
-    pub fn read_zip(
+        pub fn read_zip(
         zip_file: &str,
         dest_dir: &str
     ) -> zip::result::ZipResult<()> {
@@ -151,9 +151,19 @@ impl ZipUtil {
 mod tests {
     use crate::file_util::FileUtil;
     use super::ZipUtil;
-    use std::{path::Path, fs, io};
+    use std::{path::MAIN_SEPARATOR, path::MAIN_SEPARATOR_STR, path::Path, fs, io};
     use walkdir::WalkDir;
     use testdir::testdir;
+
+    fn normalize_path(s: &str) -> String {
+      let src_char = if MAIN_SEPARATOR == '/' {
+        "\\" 
+      } else { 
+        "/" 
+      };
+
+      s.replace(src_char, MAIN_SEPARATOR_STR)
+    }
 
     #[test]
     fn test_unzip() -> io::Result<()> {
@@ -165,13 +175,16 @@ mod tests {
         let wd = WalkDir::new(&outdir);
         let extracts: Vec<String> = wd.into_iter()
             .map(|e| FileUtil::get_sub_path(&e.unwrap().path(), &outdir.to_string_lossy()))
-            .filter(|e| !e.starts_with("/"))
+            .filter(|e| !e.starts_with(MAIN_SEPARATOR_STR))
             .filter(|e| e.contains('.'))
             .collect();
 
+        println!("Extracts: {:?}", extracts);
+        println!("Separator: {}", MAIN_SEPARATOR_STR);
+
         assert!(extracts.contains(&"foo.test.txt".into()));
         assert!(extracts.contains(&"empty.file".into()));
-        assert!(extracts.contains(&"sub/sub/[Content_Types].xml".into()));
+        assert!(extracts.contains(&normalize_path("sub/sub/[Content_Types].xml")));
         assert_eq!(3, extracts.len(), "Should be only 3 files");
 
         let empty_file = Path::new(&outdir).join("empty.file");
@@ -209,14 +222,14 @@ mod tests {
 
         let extracts: Vec<String> = WalkDir::new(&expldir).into_iter()
             .map(|e| FileUtil::get_sub_path(&e.unwrap().path(), &expldir.to_string_lossy()))
-            .filter(|e| !e.starts_with("/"))
+            .filter(|e| !e.starts_with(MAIN_SEPARATOR_STR))
             .filter(|e| e.contains('.'))
             .collect();
 
         assert_eq!(3, extracts.len());
         assert!(extracts.contains(&"foo.test.txt".into()));
         assert!(extracts.contains(&"empty.file".into()));
-        assert!(extracts.contains(&"sub/sub/[Content_Types].xml".into()));
+        assert!(extracts.contains(&normalize_path("sub/sub/[Content_Types].xml")));
 
         let empty_file = Path::new(&expldir).join("empty.file");
         assert!(empty_file.is_file());

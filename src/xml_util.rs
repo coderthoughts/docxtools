@@ -7,7 +7,7 @@ use regex::Regex;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::{File, self};
 use std::io::{BufReader, BufWriter};
-use std::path::{Path, PathBuf};
+use std::path::{Path, PathBuf, MAIN_SEPARATOR, MAIN_SEPARATOR_STR};
 use std::str;
 use uuid::Uuid;
 use unicase::UniCase;
@@ -162,7 +162,7 @@ impl XMLUtil {
             new_fn.push_str(&f[last_slash..]);
             new_fn.push('.');
             new_fn.push_str(rels_extension);
-            rels_files.push(new_fn);
+            rels_files.push(FileUtil::normalize_path(&new_fn));
         }
 
         rels_files
@@ -175,9 +175,9 @@ impl XMLUtil {
     /// `pattern` and `replacement` are used to search/replace operations.
     /// `output_file` optionally specifies a different output file for replacement operations.
     fn snr_xml(mode: Mode, dir: &str, src_file: &str, files: Option<Vec<String>>, output_file: Option<&str>) {
-        let mut base_dir = dir.to_owned();
-        if !dir.ends_with("/") {
-            base_dir.push('/');
+        let mut base_dir = FileUtil::normalize_path(dir);
+        if !base_dir.ends_with(MAIN_SEPARATOR_STR) {
+            base_dir.push(MAIN_SEPARATOR);
         }
 
         for entry in WalkDir::new(dir).into_iter()
@@ -991,6 +991,7 @@ mod tests {
     #[serial] // This test has to run serially to avoid multiple tests to capture stdout
     fn test_grep() {
         let out = capture_stdout!(XMLUtil::grep_xml("./src/test/test_tree2", "doc123.docx", "[oe]re"));
+        println!("out: {}", out);
         assert!(out.contains("doc123.docx: And some some some more text"));
         assert!(out.contains("doc123.docx: Something here"));
         assert!(out.contains("doc123.docx: Here’s a hyperlink:"));
@@ -1239,6 +1240,7 @@ mod tests {
 
         // Check that the replacement worked as expected
         let after = fs::read_to_string(testdir.join("word/document2.xml"))?;
+        println!("After: {}", after);
         assert!(after.contains("And zzz zzz more text"));
         assert!(after.contains("and then zzz"));
         assert!(after.contains("zzzthing here"));
