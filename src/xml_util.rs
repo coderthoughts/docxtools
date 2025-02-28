@@ -7,7 +7,7 @@ use regex::Regex;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::{File, self};
 use std::io::{BufReader, BufWriter};
-use std::path::{Path, PathBuf};
+use std::path::{Path, PathBuf, MAIN_SEPARATOR, MAIN_SEPARATOR_STR};
 use std::str;
 use uuid::Uuid;
 use unicase::UniCase;
@@ -154,7 +154,7 @@ impl XMLUtil {
 
         let mut rels_files = vec!();
         for f in files {
-            let last_slash = f.rfind('/').expect(&f);
+            let last_slash = f.rfind(MAIN_SEPARATOR).expect(&f);
             let mut new_fn = String::new();
             new_fn.push_str(&f[..last_slash]);
             new_fn.push_str("/_");
@@ -162,7 +162,7 @@ impl XMLUtil {
             new_fn.push_str(&f[last_slash..]);
             new_fn.push('.');
             new_fn.push_str(rels_extension);
-            rels_files.push(new_fn);
+            rels_files.push(FileUtil::normalize_path(&new_fn));
         }
 
         rels_files
@@ -175,9 +175,9 @@ impl XMLUtil {
     /// `pattern` and `replacement` are used to search/replace operations.
     /// `output_file` optionally specifies a different output file for replacement operations.
     fn snr_xml(mode: Mode, dir: &str, src_file: &str, files: Option<Vec<String>>, output_file: Option<&str>) {
-        let mut base_dir = dir.to_owned();
-        if !dir.ends_with("/") {
-            base_dir.push('/');
+        let mut base_dir = FileUtil::normalize_path(dir);
+        if !base_dir.ends_with(MAIN_SEPARATOR_STR) {
+            base_dir.push(MAIN_SEPARATOR);
         }
 
         for entry in WalkDir::new(dir).into_iter()
@@ -838,7 +838,7 @@ impl XMLUtil {
                                         } else {
                                             rel_pn = pn;
                                         }
-                                        mappings.insert(rel_pn.to_string(),
+                                        mappings.insert(FileUtil::normalize_path(rel_pn),
                                             str::from_utf8(cv.value.as_ref()).unwrap().to_string());
                                     }
                                 }
