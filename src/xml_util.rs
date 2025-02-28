@@ -154,7 +154,7 @@ impl XMLUtil {
 
         let mut rels_files = vec!();
         for f in files {
-            let last_slash = f.rfind('/').expect(&f);
+            let last_slash = f.rfind(MAIN_SEPARATOR).expect(&f);
             let mut new_fn = String::new();
             new_fn.push_str(&f[..last_slash]);
             new_fn.push_str("/_");
@@ -838,7 +838,7 @@ impl XMLUtil {
                                         } else {
                                             rel_pn = pn;
                                         }
-                                        mappings.insert(rel_pn.to_string(),
+                                        mappings.insert(FileUtil::normalize_path(rel_pn),
                                             str::from_utf8(cv.value.as_ref()).unwrap().to_string());
                                     }
                                 }
