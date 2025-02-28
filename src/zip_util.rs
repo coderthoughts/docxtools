@@ -151,19 +151,9 @@ impl ZipUtil {
 mod tests {
     use crate::file_util::FileUtil;
     use super::ZipUtil;
-    use std::{path::MAIN_SEPARATOR, path::MAIN_SEPARATOR_STR, path::Path, fs, io};
+    use std::{path::MAIN_SEPARATOR_STR, path::Path, fs, io};
     use walkdir::WalkDir;
     use testdir::testdir;
-
-    fn normalize_path(s: &str) -> String {
-      let src_char = if MAIN_SEPARATOR == '/' {
-        "\\"
-      } else {
-        "/"
-      };
-
-      s.replace(src_char, MAIN_SEPARATOR_STR)
-    }
 
     #[test]
     fn test_unzip() -> io::Result<()> {
@@ -181,7 +171,7 @@ mod tests {
 
         assert!(extracts.contains(&"foo.test.txt".into()));
         assert!(extracts.contains(&"empty.file".into()));
-        assert!(extracts.contains(&normalize_path("sub/sub/[Content_Types].xml")));
+        assert!(extracts.contains(&FileUtil::normalize_path("sub/sub/[Content_Types].xml")));
         assert_eq!(3, extracts.len(), "Should be only 3 files");
 
         let empty_file = Path::new(&outdir).join("empty.file");
@@ -226,7 +216,7 @@ mod tests {
         assert_eq!(3, extracts.len());
         assert!(extracts.contains(&"foo.test.txt".into()));
         assert!(extracts.contains(&"empty.file".into()));
-        assert!(extracts.contains(&normalize_path("sub/sub/[Content_Types].xml")));
+        assert!(extracts.contains(&FileUtil::normalize_path("sub/sub/[Content_Types].xml")));
 
         let empty_file = Path::new(&expldir).join("empty.file");
         assert!(empty_file.is_file());
