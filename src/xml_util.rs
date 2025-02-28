@@ -991,7 +991,6 @@ mod tests {
     #[serial] // This test has to run serially to avoid multiple tests to capture stdout
     fn test_grep() {
         let out = capture_stdout!(XMLUtil::grep_xml("./src/test/test_tree2", "doc123.docx", "[oe]re"));
-        println!("out: {}", out);
         assert!(out.contains("doc123.docx: And some some some more text"));
         assert!(out.contains("doc123.docx: Something here"));
         assert!(out.contains("doc123.docx: Here’s a hyperlink:"));
@@ -1240,7 +1239,6 @@ mod tests {
 
         // Check that the replacement worked as expected
         let after = fs::read_to_string(testdir.join("word/document2.xml"))?;
-        println!("After: {}", after);
         assert!(after.contains("And zzz zzz more text"));
         assert!(after.contains("and then zzz"));
         assert!(after.contains("zzzthing here"));
