@@ -10,7 +10,7 @@ pub struct ZipUtil {
 }
 
 impl ZipUtil {
-        pub fn read_zip(
+    pub fn read_zip(
         zip_file: &str,
         dest_dir: &str
     ) -> zip::result::ZipResult<()> {
@@ -157,9 +157,9 @@ mod tests {
 
     fn normalize_path(s: &str) -> String {
       let src_char = if MAIN_SEPARATOR == '/' {
-        "\\" 
-      } else { 
-        "/" 
+        "\\"
+      } else {
+        "/"
       };
 
       s.replace(src_char, MAIN_SEPARATOR_STR)
@@ -178,9 +178,6 @@ mod tests {
             .filter(|e| !e.starts_with(MAIN_SEPARATOR_STR))
             .filter(|e| e.contains('.'))
             .collect();
-
-        println!("Extracts: {:?}", extracts);
-        println!("Separator: {}", MAIN_SEPARATOR_STR);
 
         assert!(extracts.contains(&"foo.test.txt".into()));
         assert!(extracts.contains(&"empty.file".into()));
