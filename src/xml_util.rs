@@ -1211,6 +1211,36 @@ mod tests {
     }
 
     #[test]
+    fn test_replace_hyperlink2() -> io::Result<()> {
+        let orgdir = "./src/test/test_tree7";
+        let testdir = testdir!();
+
+        copy_dir_all(orgdir, &testdir)?;
+
+        let before_doc = fs::read_to_string("./src/test/test_tree7/word/document2.xml")?;
+        let before = fs::read_to_string("./src/test/test_tree7/word/_rels/document2.xml.rels")?;
+
+        assert!(before.contains("Target=\"http://www.example.com/a\""), "Precondition");
+        assert!(before_doc.contains(">www.example.com/a<"), "Precondition");
+        assert!(before.contains("Target=\"http://www.example.com/a/b\""), "Precondition");
+        assert!(before_doc.contains(">www.example.com/a/b<"), "Precondition");
+
+        XMLUtil::replace_rel_attr(&testdir.to_string_lossy(), "my-source.docx",
+            "www.example.com/a$", "www.example.com/a/",
+            &Some(&testdir.join("output-2.docx").to_string_lossy()));
+
+        let after_doc = fs::read_to_string(testdir.join("word/document2.xml"))?;
+        let after = fs::read_to_string(testdir.join("word/_rels/document2.xml.rels"))?;
+
+        assert!(after.contains("Target=\"http://www.example.com/a/\""));
+        assert!(after_doc.contains(">www.example.com/a<"), "Should not have changed the document text");
+        assert!(after.contains("Target=\"http://www.example.com/a/b\""), "Should not have changed this link");
+        assert!(after_doc.contains(">www.example.com/a/b<"), "Should not have changed the document text");
+
+        Ok(())
+    }
+
+    #[test]
     fn test_replace_both() -> io::Result<()> {
         let orgdir = "./src/test/test_tree3";
         let testroot = testdir!();
