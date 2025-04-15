@@ -2,7 +2,7 @@
 name = "docxtools"
 version = "0.11.0-SNAPSHOT"
 edition = "2021"
-authors = ["David Bosschaert <david.bosschaert@gmail.com>"]
+authors = ["David Bosschaert <david.bosschaert@gmail.com>", "contributors"]
 license = "Apache-2.0"
 description = "A command-line tool to work with docx files, for example to make bulk-changes in them without the need to open a word processor."
 readme = "README.md"
@@ -10,20 +10,20 @@ keywords = ["cli", "docx"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-regex = "1.9"
+regex = "1.11"
 tempfile = "3.8"
 zip = "2.2.1"
 walkdir = "2.3"
 unicode-bom = "2.0"
 clap = { version = "4.3.19", features = ["derive"] }
-quick-xml = "0.31"
+quick-xml = "0.37"
 uuid = { version = "1.6", features = ["v4"] }
 unicase = "2.7"
 
 [dev-dependencies]
 gag = "1.0"
-serial_test = "2.0"
-testdir = "0.8"
+serial_test = "3.2"
+testdir = "0.9"
 
 [profile.release]
 opt-level = 'z'  # Optimize for size.
